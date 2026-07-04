@@ -7,32 +7,40 @@
 class ClockSync {
   constructor(socket) {
     this.socket = socket;
-    this.samples = [];
-    this.offset = 0; // serverTime - clientTime
+    this.samples = []; // скользящее окно последних замеров
+    this.offset = 0;   // serverTime - clientTime
     this.rtt = 0;
+    this.ready = false;
     socket.on("sync:pong", ({ t0, serverTime }) => {
       const t1 = Date.now();
       const rtt = t1 - t0;
+      if (!Number.isFinite(rtt) || rtt < 0) return;
       this.samples.push({ rtt, offset: serverTime - (t0 + rtt / 2) });
-      if (this.samples.length >= 5) this.finish();
+      if (this.samples.length > 40) this.samples.shift();
+      this.recompute();
     });
   }
-  measure() {
-    this.samples = [];
-    let sent = 0;
-    const tick = () => {
-      this.socket.emit("sync:ping", { t0: Date.now() });
-      if (++sent < 5) setTimeout(tick, 120);
-    };
-    tick();
+  // Непрерывная синхронизация: плотная пачка на старте, дальше пинг каждые 2.5с.
+  // На мобильном интернете большинство пингов испорчены очередями за видео-
+  // пакетами (rtt взлетает до секунд), поэтому offset берём из замера с
+  // МИНИМАЛЬНЫМ rtt в окне — он ближе всех к истине. Один чистый пинг из
+  // тридцати даёт точные часы; окно скользит, чтобы смена сети не оставляла
+  // устаревших замеров навсегда.
+  start() {
+    this.stop();
+    const ping = () => this.socket.emit("sync:ping", { t0: Date.now() });
+    [0, 200, 450, 750, 1100].forEach((d) => setTimeout(ping, d));
+    this.timer = setInterval(ping, 2500);
   }
-  finish() {
-    const sorted = [...this.samples].sort((a, b) => a.rtt - b.rtt);
-    const medianRtt = sorted[Math.floor(sorted.length / 2)].rtt;
-    const good = sorted.filter((s) => s.rtt <= medianRtt * 2);
-    const offsets = good.map((s) => s.offset).sort((a, b) => a - b);
-    this.offset = offsets[Math.floor(offsets.length / 2)];
-    this.rtt = medianRtt;
+  stop() { clearInterval(this.timer); }
+  measure() { this.start(); } // совместимость со старым интерфейсом
+  recompute() {
+    const recent = this.samples.slice(-30);
+    const best = recent.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+    // шум меньше 25мс игнорируем — иначе дрейф-коррекция дёргается за часами
+    if (!this.ready || Math.abs(best.offset - this.offset) > 25) this.offset = best.offset;
+    this.rtt = best.rtt;
+    this.ready = true;
   }
   now() { return Date.now() + this.offset; }
 }
@@ -88,10 +96,16 @@ class SyncEngine {
     const abs = Math.abs(drift);
     this.onDrift(drift);
 
-    // YouTube не принимает дробные скорости врода 1.05 — только перемотка
-    const canNudge = p.kind !== "youtube";
-    const seekAt = canNudge ? 1.0 : 0.75;
-    if (abs < 0.15) {
+    // дробные скорости вроде 1.05 умеют только наши плееры (HTML5/HLS);
+    // YouTube и RuTube — коррекция только перемоткой
+    const canNudge = p.kind === "direct" || p.kind === "hls";
+    // при плохой сети (rtt > 600мс) пороги расширяются: стабильность важнее
+    // идеала, которого канал всё равно не даст
+    const slow = (this.clock.rtt || 0) > 600;
+    let seekAt = canNudge ? 1.0 : 0.75;
+    if (slow) seekAt = Math.min(2.5, (this.clock.rtt || 0) / 1000 + 0.7);
+    const dead = slow ? 0.3 : 0.15;
+    if (abs < dead) {
       if (this.nudging) { p.setRate(s.rate); this.nudging = false; }
     } else if (abs < seekAt && canNudge) {
       // незаметная коррекция скоростью ±5%

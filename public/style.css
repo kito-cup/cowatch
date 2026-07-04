@@ -310,3 +310,73 @@ input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- v8: поиск, реакции, статистика, моменты ---------- */
+.search-results {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-top: 12px; max-height: 42vh; overflow-y: auto;
+}
+.search-results:empty { display: none; }
+.result-card {
+  text-align: left; border-radius: var(--r-s); overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); padding: 0;
+  transition: border-color .15s;
+}
+.result-card:active, .result-card:hover { border-color: var(--accent); }
+.result-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #000; }
+.result-card .rc-title {
+  font-size: 12px; line-height: 1.35; padding: 7px 8px 8px; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.result-card .rc-dur {
+  position: absolute; /* внутри relative-обёртки */
+}
+.search-note { margin-top: 10px; font-size: 12.5px; color: var(--faint); }
+.link-details { margin-top: 14px; text-align: left; }
+.link-details summary { font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.resume-btn {
+  width: 100%; margin-top: 12px; padding: 11px; border-radius: var(--r-s);
+  background: var(--surface); border: 1px solid var(--border); font-size: 13.5px;
+}
+.resume-btn:active { border-color: var(--accent); }
+
+.love-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+
+/* реакции, летящие поверх видео */
+.fly-react {
+  position: absolute; bottom: 8%; font-size: 34px; pointer-events: none;
+  animation: fly-up 2.2s ease-out forwards; z-index: 6;
+}
+@keyframes fly-up {
+  20% { transform: translateY(-18vh) scale(1.25); opacity: 1; }
+  to  { transform: translateY(-52vh) scale(.9) rotate(12deg); opacity: 0; }
+}
+
+/* статистика */
+.stats-panel h3 { font-size: 14px; margin: 4px 0 10px; }
+.stats-panel h3:nth-of-type(2) { margin-top: 16px; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-cell {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-s); padding: 10px;
+}
+.stat-cell b { display: block; font-size: 19px; letter-spacing: -0.02em; }
+.stat-cell span { font-size: 11.5px; color: var(--muted); }
+.moments-list { display: flex; flex-direction: column; gap: 6px; max-height: 30vh; overflow-y: auto; }
+.moment-row {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-s); padding: 9px 10px; font-size: 12.5px;
+}
+.moment-row:active { border-color: var(--accent); }
+.moment-row .m-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
+.moment-row .m-title { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moments-list:empty::after { content: "Пока пусто — жми 📌 на моменте фильма"; color: var(--faint); font-size: 12px; }
+#stats-close { margin-top: 12px; }
+
+/* точки моментов на таймлайне */
+.timeline .pin-dot {
+  position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 50%;
+  background: #ffd166; transform: translate(-50%, -50%); z-index: 2;
+  box-shadow: 0 0 6px rgba(255,209,102,.7);
+}

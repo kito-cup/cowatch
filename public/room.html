@@ -21,7 +21,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="text-decoration:none;color:inherit"><span>Co</span>Watch</a>
-      <span style="font-size:11px;color:var(--faint)">v6</span>
+      <span style="font-size:11px;color:var(--faint)">v8</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -30,8 +30,18 @@
       <div id="sync-dot" class="sync-dot" data-q="" title="Состояние синхронизации">
         <i></i><span id="sync-label">подключение…</span>
       </div>
+      <button id="stats-btn" class="copy-link" title="Наша статистика" style="padding:6px 10px">⭐</button>
       <div id="members" class="members"></div>
     </header>
+
+    <!-- статистика пары и любимые моменты -->
+    <div id="stats-panel" class="diag stats-panel" style="display:none">
+      <h3>⭐ Наша статистика</h3>
+      <div id="stats-body" class="stats-grid"></div>
+      <h3>📌 Любимые моменты</h3>
+      <div id="moments-list" class="moments-list"></div>
+      <button id="stats-close">Закрыть</button>
+    </div>
 
     <!-- диагностика: открывается тапом по индикатору синка -->
     <div id="diag" class="diag" style="display:none">
@@ -47,15 +57,23 @@
       <!-- пустое состояние -->
       <div class="source-card" id="source-card">
         <h2>Что смотрим?</h2>
-        <p>Вставьте ссылку на видео — MP4, WebM, поток HLS (.m3u8) или YouTube.</p>
         <div class="source-row">
-          <input id="source-input" placeholder="https://…" autocomplete="off" />
-          <button id="source-go">Смотреть</button>
+          <input id="search-input" placeholder="Поиск видео на RuTube…" autocomplete="off" />
+          <button id="search-go">Найти</button>
         </div>
-        <p class="source-note">Видео запустится синхронно у всех в комнате.
-          <br /><a href="#" style="color:var(--accent)"
-            onclick="event.preventDefault();document.getElementById('source-input').value=location.origin+'/test.mp4';document.getElementById('source-go').click()">
-            Включить тестовое видео с таймером</a></p>
+        <div class="search-results" id="search-results"></div>
+        <button id="resume-btn" class="resume-btn" style="display:none"></button>
+        <details class="link-details">
+          <summary>…или вставить ссылку (RuTube, YouTube, MP4, HLS)</summary>
+          <div class="source-row" style="margin-top:10px">
+            <input id="source-input" placeholder="https://…" autocomplete="off" />
+            <button id="source-go">Смотреть</button>
+          </div>
+          <p class="source-note" style="margin-top:10px">
+            <a href="#" style="color:var(--accent)"
+              onclick="event.preventDefault();document.getElementById('source-input').value=location.origin+'/test.mp4';document.getElementById('source-go').click()">
+              Тестовое видео с таймером</a> — для проверки синхронизации.</p>
+        </details>
       </div>
 
       <!-- сюда монтируется плеер -->
@@ -88,6 +106,7 @@
           <span class="time-label"><span id="t-cur">0:00</span> / <span id="t-dur">0:00</span></span>
           <div class="spacer"></div>
           <button id="btn-rate" class="rate-btn" title="Скорость (Shift + < >)">1×</button>
+          <button id="btn-pin" title="Сохранить момент">📌</button>
           <button id="btn-src" class="change-src" title="Сменить видео">Сменить видео</button>
           <button id="btn-mute" title="Звук (M)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 8a4.5 4.5 0 0 1 0 8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
@@ -106,6 +125,13 @@
       <div class="love-btns">
         <button data-love="hug" title="Обнять">🤗</button>
         <button data-love="kiss" title="Воздушный поцелуй">💋</button>
+        <span class="love-sep"></span>
+        <button data-react="❤️">❤️</button>
+        <button data-react="😂">😂</button>
+        <button data-react="😮">😮</button>
+        <button data-react="🔥">🔥</button>
+        <button data-react="🥺">🥺</button>
+        <button data-react="😭">😭</button>
       </div>
       <div class="chat-input">
         <input id="chat-text" placeholder="Сообщение…" maxlength="500" autocomplete="off" />

@@ -14,9 +14,10 @@
 
       <input id="name" class="name-input" maxlength="24"
              placeholder="Ваше имя" autocomplete="off" />
-      <button id="create" class="btn-primary">Создать комнату</button>
+      <button id="pair" class="btn-primary">💜 Наша комната</button>
+      <button id="create" class="btn-primary" style="margin-top:10px;background:var(--surface);border:1px solid var(--border);box-shadow:none">Новая комната</button>
 
-      <p class="hint">Без регистрации. Комната — это просто ссылка,<br />отправьте её человеку и смотрите.</p>
+      <p class="hint">«Наша комната» — постоянная: одна и та же ссылка<br />каждый вечер, статистика копится.</p>
     </div>
   </main>
 
@@ -29,6 +30,20 @@
       localStorage.setItem("cw:name", name);
       const res = await fetch("/api/rooms", { method: "POST" });
       const { id } = await res.json();
+      location.href = `/r/${id}`;
+    });
+
+    // Постоянная комната пары: id создаётся один раз и живёт в localStorage.
+    // Если сервер перезапускался, комната воссоздастся с тем же id при входе.
+    document.getElementById("pair").addEventListener("click", async () => {
+      const name = nameEl.value.trim() || "Гость";
+      localStorage.setItem("cw:name", name);
+      let id = localStorage.getItem("cw:pairRoom");
+      if (!id) {
+        const res = await fetch("/api/rooms", { method: "POST" });
+        id = (await res.json()).id;
+        localStorage.setItem("cw:pairRoom", id);
+      }
       location.href = `/r/${id}`;
     });
 

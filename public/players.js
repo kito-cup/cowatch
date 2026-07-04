@@ -11,6 +11,8 @@ function resolveSource(url) {
     /(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/,
   );
   if (yt) return { kind: "youtube", url, videoId: yt[1] };
+  const rt = url.match(/rutube\.ru\/(?:video|play\/embed|shorts)\/([0-9a-f]{32})/i);
+  if (rt) return { kind: "rutube", url, videoId: rt[1] };
   if (/\.m3u8(\?|$)/i.test(url)) return { kind: "hls", url };
   return { kind: "direct", url };
 }
@@ -156,10 +158,115 @@ class YouTubePlayer {
   }
 }
 
+/* ---------- RuTube (embed + postMessage) ----------
+   Официальный протокол плеера RuTube: команды и события ходят через
+   postMessage JSON-строками. Время приходит событиями player:currentTime
+   примерно раз в секунду — между ними экстраполируем сами. */
+class RuTubePlayer {
+  constructor(host, source) {
+    this.kind = "rutube";
+    this.handlers = {};
+    this.destroyed = false;
+    this.ready = false;
+    this.suppressUntil = 0;
+    this._playing = false;
+    this._dur = 0;
+    this._last = { t: 0, at: performance.now() }; // последняя точка времени
+    this.lastPoll = null;
+
+    this.iframe = document.createElement("iframe");
+    this.iframe.src = `https://rutube.ru/play/embed/${source.videoId}/`;
+    this.iframe.allow = "autoplay; fullscreen";
+    this.iframe.setAttribute("allowfullscreen", "");
+    host.appendChild(this.iframe);
+
+    this._onMsg = (e) => {
+      if (!String(e.origin).includes("rutube.ru")) return;
+      let m; try { m = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch { return; }
+      if (!m || typeof m.type !== "string") return;
+      const d = m.data || {};
+      switch (m.type) {
+        case "player:ready":
+          this.ready = true; this.emit("ready"); break;
+        case "player:durationChange":
+          if (Number.isFinite(d.duration)) this._dur = d.duration; break;
+        case "player:currentTime":
+          if (Number.isFinite(d.time)) this._setTime(d.time); break;
+        case "player:changeState": {
+          const st = d.state;
+          if (st === "playing") {
+            this._playing = true; this.emit("buffering", false);
+            if (!this.suppressed) this.emit("user-play", this.getTime());
+          } else if (st === "paused" || st === "stopped") {
+            this._playing = false;
+            if (!this.suppressed && st === "paused") this.emit("user-pause", this.getTime());
+          } else if (st === "buffering") this.emit("buffering", true);
+          break;
+        }
+        case "player:error":
+          this.emit("error", "RuTube не смог воспроизвести это видео (возможно, оно недоступно или встраивание запрещено)."); break;
+      }
+    };
+    window.addEventListener("message", this._onMsg);
+
+    // страховка: если за 8с плеер не отчитался о готовности — режим деградации
+    this._readyGuard = setTimeout(() => {
+      if (!this.ready && !this.destroyed) {
+        this.ready = true;
+        this.emit("ready");
+        this.emit("degraded"); // room.js покажет бейдж ручного режима
+      }
+    }, 8000);
+
+    // детект пользовательской перемотки внутри iframe (как у YouTube)
+    this._poll = setInterval(() => {
+      const t = this.getTime(), now = performance.now();
+      if (this.lastPoll) {
+        const elapsed = (now - this.lastPoll.at) / 1000;
+        const expected = this.lastPoll.t + (this._playing ? elapsed : 0);
+        if (Math.abs(t - expected) > 2.5 && !this.suppressed) this.emit("user-seek", t);
+      }
+      this.lastPoll = { t, at: now };
+      this.emit("timeupdate", t);
+    }, 500);
+  }
+  emit(ev, ...a) { (this.handlers[ev] || []).forEach((f) => f(...a)); }
+  on(ev, f) { (this.handlers[ev] ||= []).push(f); }
+  suppress(ms = 1200) { this.suppressUntil = performance.now() + ms; }
+  get suppressed() { return performance.now() < this.suppressUntil; }
+  _setTime(t) { this._last = { t, at: performance.now() }; }
+  _cmd(type, data = {}) {
+    this.iframe?.contentWindow?.postMessage(JSON.stringify({ type, data }), "*");
+  }
+
+  async play() { this.suppress(); this._cmd("player:play"); }
+  pause() { this.suppress(); this._cmd("player:pause"); }
+  seek(t) {
+    this.suppress(); this.lastPoll = null; this._setTime(t);
+    this._cmd("player:setCurrentTime", { time: Math.max(0, t) });
+  }
+  setRate() {} // управление скоростью у RuTube недоступно — синк это учитывает
+  getTime() {
+    const dt = (performance.now() - this._last.at) / 1000;
+    return this._last.t + (this._playing ? dt : 0);
+  }
+  getDuration() { return this._dur; }
+  getBuffered() { return 0; }
+  setMuted(m) { this._cmd(m ? "player:mute" : "player:unMute"); }
+  isPaused() { return !this._playing; }
+  destroy() {
+    this.destroyed = true;
+    clearInterval(this._poll);
+    clearTimeout(this._readyGuard);
+    window.removeEventListener("message", this._onMsg);
+    this.iframe?.remove();
+  }
+}
+
 function createPlayer(host, source) {
-  return source.kind === "youtube"
-    ? new YouTubePlayer(host, source)
-    : new Html5Player(host, source);
+  if (source.kind === "youtube") return new YouTubePlayer(host, source);
+  if (source.kind === "rutube") return new RuTubePlayer(host, source);
+  return new Html5Player(host, source);
 }
 
 window.CW_PLAYERS = { resolveSource, createPlayer };

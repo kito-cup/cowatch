@@ -2,6 +2,7 @@
 const { resolveSource, createPlayer } = window.CW_PLAYERS;
 const { ClockSync, SyncEngine } = window.CW_SYNC;
 
+const CW_VERSION = "v7";
 const roomId = location.pathname.split("/").pop();
 const myName = localStorage.getItem("cw:name") || prompt("Ваше имя:")?.slice(0, 24) || "Гость";
 localStorage.setItem("cw:name", myName);
@@ -17,7 +18,8 @@ let selfId = null;
 
 /* ---------------- Подключение / переподключение ---------------- */
 function join() {
-  socket.emit("room:join", { roomId, name: myName }, (res) => {
+  // любая корректная ссылка комнаты работает всегда, даже после рестарта сервера
+  socket.emit("room:join", { roomId, name: myName, createIfMissing: true }, (res) => {
     if (res?.error) {
       document.body.innerHTML =
         `<main class="landing"><div class="landing-card"><div class="logo">CoWatch</div>
@@ -26,14 +28,14 @@ function join() {
       return;
     }
     selfId = res.selfId;
-    clock.measure();
+    clock.start(); // непрерывная синхронизация часов
     renderMembers(res.members);
     $("chat-log").innerHTML = ""; // rejoin: снапшот заново, без дублей
     res.messages.forEach(renderMessage);
     if (res.state.source) mountSource(res.state.source);
     sync.state = res.state;
-    if (!window.__cwClockTimer)
-      window.__cwClockTimer = setInterval(() => clock.measure(), 30000);
+    sendPairSync(); // делимся статистикой и моментами с партнёром
+    updateResumeButton();
   });
 }
 socket.on("connect", join);
@@ -70,8 +72,8 @@ function mountSource(source) {
   sync.attach(player);
   toast(`Источник: ${resolved.kind === "youtube" ? "YouTube" : resolved.kind.toUpperCase()}`);
 
-  const isYouTube = resolved.kind === "youtube";
-  $("controls").style.display = isYouTube ? "none" : ""; // у YT свой UI внутри iframe
+  const isEmbed = resolved.kind === "youtube" || resolved.kind === "rutube";
+  $("controls").style.display = isEmbed ? "none" : ""; // у embed-плееров свой UI
 
   player.on("ready", () => {
     // догоняем комнату
@@ -82,13 +84,15 @@ function mountSource(source) {
   });
   player.on("buffering", (b) => {
     sync.setBuffering(b);
-    if (!isYouTube) badge("me-buf", b ? "⏳ Буферизация…" : null);
+    if (!isEmbed) badge("me-buf", b ? "⏳ Буферизация…" : null);
   });
   player.on("timeupdate", updateTimeline);
   player.on("error", (msg) => { toast(msg, 5000); $("source-card").style.display = ""; });
   player.on("autoplay-blocked", () => { $("tap-to-play").style.display = "flex"; });
 
   // действия пользователя ВНУТРИ iframe YouTube транслируем в комнату
+  player.on("degraded", () =>
+    badge("degraded", "⚠️ RuTube не отвечает — возможен ручной режим"));
   player.on("user-play", () => sync.userPlay());
   player.on("user-pause", () => sync.userPause());
   player.on("user-seek", (t) => sync.userSeek(t));
@@ -319,7 +323,7 @@ setInterval(() => {
   const v = player?.video; // есть только у HTML5-плеера
   const err = v?.error ? `${v.error.code} (${VIDEO_ERR[v.error.code] || "?"})` : "нет";
   const lines = [
-    `версия      v5`,
+    `версия      ${CW_VERSION}`,
     `соединение  ${socket.connected ? "✓ подключено" : "✗ разорвано"}`,
     `часы        offset ${Math.round(clock.offset)}мс, rtt ${Math.round(clock.rtt)}мс`,
     `источник    ${sync.state?.source ? sync.state.source.kind + " " + sync.state.source.url.slice(0, 60) : "не выбран"}`,
@@ -365,3 +369,187 @@ const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]),
   );
+
+/* ================= v8: поиск RuTube ================= */
+$("search-go").addEventListener("click", doSearch);
+$("search-input").addEventListener("keydown", (e) => e.key === "Enter" && doSearch());
+
+async function doSearch() {
+  const q = $("search-input").value.trim();
+  if (!q) return;
+  $("search-results").innerHTML = `<div class="search-note">Ищем…</div>`;
+  try {
+    const r = await fetch("/api/rutube/search?q=" + encodeURIComponent(q));
+    if (!r.ok) throw 0;
+    const { results } = await r.json();
+    if (!results.length) {
+      $("search-results").innerHTML = `<div class="search-note">Ничего не нашлось — попробуйте иначе</div>`;
+      return;
+    }
+    $("search-results").innerHTML = "";
+    results.forEach((v) => {
+      const b = document.createElement("button");
+      b.className = "result-card";
+      b.innerHTML = `<img loading="lazy" src="${esc(v.thumb)}" alt="">
+        <div class="rc-title">${esc(v.title)}${v.duration ? ` · ${fmt(v.duration)}` : ""}</div>`;
+      b.addEventListener("click", () => {
+        socket.emit("sync:action", { type: "source", value: { kind: "rutube", url: v.url } });
+      });
+      $("search-results").appendChild(b);
+    });
+  } catch {
+    $("search-results").innerHTML =
+      `<div class="search-note">Поиск RuTube сейчас недоступен — вставьте ссылку на видео ниже</div>`;
+  }
+}
+
+/* ================= v8: реакции поверх видео ================= */
+document.querySelectorAll("[data-react]").forEach((b) =>
+  b.addEventListener("click", () =>
+    socket.emit("couple:reaction", { emoji: b.dataset.react })),
+);
+socket.on("couple:reaction", ({ emoji }) => {
+  const s = document.createElement("span");
+  s.className = "fly-react";
+  s.textContent = emoji;
+  s.style.left = 12 + Math.random() * 76 + "%";
+  $("stage").appendChild(s);
+  setTimeout(() => s.remove(), 2300);
+});
+
+/* ================= v8: статистика пары и любимые моменты =================
+   Данные живут в localStorage обоих устройств и сливаются при каждой встрече
+   в комнате — сервер их не хранит и рестарты бесплатного тарифа не страшны. */
+const PAIR_KEY = "cw:pair:" + roomId;
+function loadPair() {
+  try { return JSON.parse(localStorage.getItem(PAIR_KEY)) || {}; } catch { return {}; }
+}
+function savePair(p) { localStorage.setItem(PAIR_KEY, JSON.stringify(p)); }
+let pair = Object.assign({ seconds: 0, films: [], days: [], moments: [] }, loadPair());
+
+function mergePair(other) {
+  if (!other || typeof other !== "object") return;
+  pair.seconds = Math.max(pair.seconds, Number(other.seconds) || 0);
+  pair.films = [...new Set([...pair.films, ...(other.films || [])])].slice(-200);
+  pair.days = [...new Set([...pair.days, ...(other.days || [])])].sort().slice(-400);
+  const ids = new Set(pair.moments.map((m) => m.id));
+  (other.moments || []).forEach((m) => {
+    if (m && m.id && !ids.has(m.id)) pair.moments.push(m);
+  });
+  pair.moments = pair.moments.slice(-100);
+  savePair(pair);
+}
+function sendPairSync() {
+  socket.emit("pair:sync", { seconds: pair.seconds, films: pair.films, days: pair.days, moments: pair.moments });
+}
+socket.on("pair:sync", (p) => { mergePair(p); renderStats(); });
+
+// счёт времени вместе: оба в комнате и фильм играет
+setInterval(() => {
+  if (!socket.connected || lastMembers.length < 2 || !sync.state?.playing) return;
+  pair.seconds += 5;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!pair.days.includes(today)) pair.days.push(today);
+  const url = sync.state?.source?.url;
+  if (url && !pair.films.includes(url)) pair.films.push(url);
+  savePair(pair);
+}, 5000);
+
+function streak() {
+  const set = new Set(pair.days);
+  let n = 0;
+  for (let d = new Date(); ; d.setDate(d.getDate() - 1)) {
+    if (set.has(d.toISOString().slice(0, 10))) n++;
+    else if (n > 0 || !set.has(new Date().toISOString().slice(0, 10))) break;
+  }
+  return n;
+}
+
+/* панель статистики */
+$("stats-btn").addEventListener("click", () => {
+  renderStats();
+  $("stats-panel").style.display = "";
+});
+$("stats-close").addEventListener("click", () => ($("stats-panel").style.display = "none"));
+
+function renderStats() {
+  if ($("stats-panel").style.display === "none") return void 0;
+  const h = Math.floor(pair.seconds / 3600), m = Math.floor((pair.seconds % 3600) / 60);
+  $("stats-body").innerHTML = `
+    <div class="stat-cell"><b>${h}ч ${m}м</b><span>вместе у экрана</span></div>
+    <div class="stat-cell"><b>${pair.films.length}</b><span>видео посмотрели</span></div>
+    <div class="stat-cell"><b>${streak()}</b><span>дней подряд</span></div>
+    <div class="stat-cell"><b>${pair.days.length}</b><span>вечеров всего</span></div>`;
+  const list = $("moments-list");
+  list.innerHTML = "";
+  [...pair.moments].reverse().forEach((mo) => {
+    const b = document.createElement("button");
+    b.className = "moment-row";
+    b.innerHTML = `<span class="m-time">${fmt(mo.time)}</span>
+      <span class="m-title">${esc(mo.title || mo.url)}</span>`;
+    b.addEventListener("click", () => {
+      $("stats-panel").style.display = "none";
+      if (sync.state?.source?.url !== mo.url)
+        socket.emit("sync:action", { type: "source", value: { kind: mo.kind || "direct", url: mo.url } });
+      setTimeout(() => sync.userSeek(mo.time), sync.state?.source?.url === mo.url ? 0 : 2000);
+    });
+    list.appendChild(b);
+  });
+}
+
+/* пин момента */
+$("btn-pin").addEventListener("click", () => {
+  const url = sync.state?.source?.url;
+  if (!url || !player) return;
+  const mo = {
+    id: Math.random().toString(36).slice(2, 10),
+    url,
+    kind: sync.state.source.kind,
+    time: Math.floor(player.getTime()),
+    title: document.title !== "CoWatch — комната" ? document.title : url.split("/").pop(),
+    at: Date.now(),
+  };
+  pair.moments.push(mo);
+  savePair(pair);
+  sendPairSync();
+  toast(`📌 Момент ${fmt(mo.time)} сохранён`);
+  drawPins();
+});
+
+/* точки моментов на таймлайне текущего видео */
+function drawPins() {
+  document.querySelectorAll(".pin-dot").forEach((d) => d.remove());
+  const url = sync.state?.source?.url;
+  const dur = player?.getDuration();
+  if (!url || !isFinite(dur) || !dur) return;
+  pair.moments.filter((m) => m.url === url).forEach((m) => {
+    const d = document.createElement("div");
+    d.className = "pin-dot";
+    d.style.left = (m.time / dur) * 100 + "%";
+    $("timeline").querySelector(".track").appendChild(d);
+  });
+}
+setInterval(drawPins, 4000);
+
+/* ================= v8: продолжить с того же места ================= */
+setInterval(() => {
+  const st = sync.state;
+  if (!st?.source || !st.playing || !player) return;
+  localStorage.setItem("cw:resume:" + roomId, JSON.stringify({
+    url: st.source.url, kind: st.source.kind,
+    time: Math.floor(player.getTime()),
+    at: Date.now(),
+  }));
+}, 10000);
+
+function updateResumeButton() {
+  let r; try { r = JSON.parse(localStorage.getItem("cw:resume:" + roomId)); } catch {}
+  const btn = $("resume-btn");
+  if (!r || sync.state?.source || r.time < 30) { btn.style.display = "none"; return; }
+  btn.style.display = "";
+  btn.textContent = `▶ Продолжить прошлое видео с ${fmt(r.time)}`;
+  btn.onclick = () => {
+    socket.emit("sync:action", { type: "source", value: { kind: r.kind, url: r.url } });
+    setTimeout(() => sync.userSeek(r.time), 2500);
+  };
+}
