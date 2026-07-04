@@ -72,6 +72,7 @@ function mountSource(source) {
   sync.attach(player);
   const srcName = { youtube: "YouTube", rutube: "RuTube", hls: "HLS", direct: "видео" }[resolved.kind] || resolved.kind;
   toast(source.title ? `▶ ${source.title}` : `Источник: ${srcName}`);
+  document.title = source.title ? `${source.title} — CoWatch` : "CoWatch — комната";
 
   const isEmbed = resolved.kind === "youtube" || resolved.kind === "rutube";
   $("controls").style.display = isEmbed ? "none" : ""; // у embed-плееров свой UI
@@ -226,7 +227,7 @@ function renderMembers(members) {
     .map(
       (m) => `<div class="avatar ${m.isOwner ? "owner" : ""}"
         title="${esc(m.name)}${m.isOwner ? " · владелец" : ""}"
-        style="background:hsl(${m.hue} 60% 45%)">${esc(m.name[0].toUpperCase())}</div>`,
+        style="background:hsl(${m.hue} 60% 45%)">${esc(m.name[0].toUpperCase())}${m.status ? `<span class="st">${m.status}</span>` : ""}</div>`,
     )
     .join("");
 }
@@ -259,6 +260,14 @@ socket.on("chat:typing", ({ name, state }) => {
 });
 
 function renderMessage(m) {
+  // в полноэкранном режиме чата не видно — показываем сообщение поверх видео
+  if (document.fullscreenElement && m.author !== myName) {
+    const fs = document.createElement("div");
+    fs.className = "fs-msg";
+    fs.innerHTML = `<b>${esc(m.author)}</b>${esc(m.text)}`;
+    $("stage").appendChild(fs);
+    setTimeout(() => fs.remove(), 4200);
+  }
   const el = document.createElement("div");
   el.className = "msg";
   el.innerHTML = `
@@ -339,6 +348,12 @@ setInterval(() => {
 }, 500);
 
 $("copy-link").addEventListener("click", async () => {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "CoWatch — смотрим вместе", url: location.href });
+      return;
+    } catch { /* отменили — падаем в копирование */ }
+  }
   try {
     await navigator.clipboard.writeText(location.href);
     $("room-code").textContent = "Скопировано ✓";
@@ -394,7 +409,8 @@ async function doSearch() {
     $("search-input").value = "";
     return;
   }
-  $("search-results").innerHTML = `<div class="search-note">Ищем…</div>`;
+  $("search-results").innerHTML = Array.from({ length: 4 }, () =>
+    `<div class="skel"><div class="sk-img"></div><div class="sk-line"></div></div>`).join("");
   try {
     const r = await fetch("/api/rutube/search?q=" + encodeURIComponent(q));
     if (!r.ok) throw 0;
@@ -428,14 +444,44 @@ document.querySelectorAll("[data-react]").forEach((b) =>
   b.addEventListener("click", () =>
     socket.emit("couple:reaction", { emoji: b.dataset.react })),
 );
-socket.on("couple:reaction", ({ emoji }) => {
+const hearts = { mine: 0, theirs: 0 };
+socket.on("couple:reaction", ({ emoji, from }) => {
   const s = document.createElement("span");
   s.className = "fly-react";
   s.textContent = emoji;
   s.style.left = 12 + Math.random() * 76 + "%";
   $("stage").appendChild(s);
   setTimeout(() => s.remove(), 2300);
+  try { navigator.vibrate?.(25); } catch {}
+
+  // сердечки от обоих в течение 3 секунд = совпадение 💞
+  if (emoji === "❤️") {
+    const now = Date.now();
+    if (from === myName) hearts.mine = now; else hearts.theirs = now;
+    if (now - hearts.mine < 3000 && now - hearts.theirs < 3000) {
+      hearts.mine = hearts.theirs = 0;
+      heartMatch();
+    }
+  }
 });
+function heartMatch() {
+  const wrap = document.createElement("div");
+  wrap.className = "heart-burst";
+  wrap.innerHTML = `<span class="hb-big">💞</span>`;
+  $("stage").appendChild(wrap);
+  for (let i = 0; i < 16; i++) {
+    setTimeout(() => {
+      const h = document.createElement("span");
+      h.textContent = ["💜", "💗", "✨"][i % 3];
+      h.style.left = 5 + Math.random() * 90 + "%";
+      h.style.fontSize = 18 + Math.random() * 22 + "px";
+      $("hearts").appendChild(h);
+      setTimeout(() => h.remove(), 2700);
+    }, i * 70);
+  }
+  try { navigator.vibrate?.([40, 60, 40]); } catch {}
+  setTimeout(() => wrap.remove(), 1700);
+}
 
 /* ================= v8: статистика пары и любимые моменты =================
    Данные живут в localStorage обоих устройств и сливаются при каждой встрече
@@ -639,4 +685,16 @@ $("stage").addEventListener("pointerup", (e) => {
     return;
   }
   lastTap = { at: now, x: e.clientX };
+});
+
+/* ================= v11: мой статус (☕ чай / 🍿 попкорн / …) ================= */
+const STATUS_CYCLE = [null, "☕", "🍿", "🚻", "😴"];
+let statusIdx = 0;
+$("status-btn").addEventListener("click", () => {
+  statusIdx = (statusIdx + 1) % STATUS_CYCLE.length;
+  const emoji = STATUS_CYCLE[statusIdx];
+  $("status-btn").textContent = emoji || "☕";
+  $("status-btn").style.opacity = emoji ? "1" : "";
+  socket.emit("couple:status", { emoji });
+  toast(emoji ? `Статус: ${emoji}` : "Статус снят");
 });
