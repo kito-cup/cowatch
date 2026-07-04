@@ -75,6 +75,8 @@ function mountSource(source) {
     // догоняем комнату
     if (sync.state) sync.applyState({ ...sync.state, version: sync.state.version + 0.1 });
     updateDuration();
+    updatePlayIcon();
+    showControls();
   });
   player.on("buffering", (b) => {
     sync.setBuffering(b);
@@ -98,8 +100,11 @@ let hideTimer = null;
 function showControls(ms = 3000) {
   $("controls").classList.add("visible");
   clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => $("controls").classList.remove("visible"), ms);
+  hideTimer = setTimeout(() => {
+    if (player && !player.isPaused()) $("controls").classList.remove("visible");
+  }, ms); // на паузе контролы не прячем
 }
+$("big-play").addEventListener("click", () => { sync.userPlay(); showControls(); });
 $("stage").addEventListener("click", (e) => {
   if (e.target !== $("player-host") && e.target.tagName !== "VIDEO") return;
   if (isTouch) {
@@ -176,7 +181,10 @@ function updatePlayIcon() {
   $("ic-play").style.display = paused ? "" : "none";
   $("ic-pause").style.display = paused ? "none" : "";
   $("btn-rate").textContent = (sync.state?.rate ?? 1) + "×";
+  $("big-play").style.display =
+    paused && player && player.kind !== "youtube" ? "" : "none";
 }
+setInterval(updatePlayIcon, 500); // пауза может прийти и с сервера
 
 /* ---------------- Индикатор синхронизации ---------------- */
 function setSyncDot(q, label) {

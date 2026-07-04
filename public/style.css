@@ -206,6 +206,12 @@ input { font: inherit; color: inherit; }
 }
 @keyframes pulse { 50% { transform: scale(1.07); } }
 
+/* большая кнопка Play по центру — видна на паузе */
+.big-play {
+  position: absolute; z-index: 4;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+}
+
 /* тач-устройства: контролы крупнее, показ по тапу */
 @media (pointer: coarse) {
   .ctrl-row { gap: 18px; }
