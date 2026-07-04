@@ -4,9 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CoWatch — комната</title>
-  <link rel="preconnect" href="https://rsms.me" />
-  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
   <link rel="stylesheet" href="/style.css" />
+  <script>
+    // показываем любые JS-ошибки на экране — чтобы их можно было прислать с телефона
+    window.addEventListener("error", (e) => {
+      const d = document.createElement("div");
+      d.style.cssText = "position:fixed;bottom:8px;left:8px;right:8px;z-index:99;background:#3a1418;color:#ffb4b4;border:1px solid #7a2b31;border-radius:10px;padding:10px 12px;font:12px/1.4 monospace;word-break:break-all";
+      d.textContent = "Ошибка: " + e.message + " @ " + (e.filename||"").split("/").pop() + ":" + e.lineno;
+      document.body.appendChild(d);
+      setTimeout(() => d.remove(), 15000);
+    });
+  </script>
 </head>
 <body>
   <div class="room">
@@ -93,7 +101,7 @@
   <div class="toasts" id="toasts"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+  <script src="/hls.min.js"></script>
   <script src="/players.js"></script>
   <script src="/sync.js"></script>
   <script src="/room.js"></script>

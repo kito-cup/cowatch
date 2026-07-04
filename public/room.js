@@ -291,8 +291,15 @@ $("tap-to-play").addEventListener("click", async () => {
 });
 
 $("copy-link").addEventListener("click", async () => {
-  await navigator.clipboard.writeText(location.href);
-  $("room-code").textContent = "Скопировано ✓";
+  try {
+    await navigator.clipboard.writeText(location.href);
+    $("room-code").textContent = "Скопировано ✓";
+  } catch {
+    // старые браузеры / запрет clipboard — показываем ссылку для ручного копирования
+    prompt("Скопируйте ссылку:", location.href);
+    $("room-code").textContent = "Пригласить";
+    return;
+  }
   setTimeout(() => ($("room-code").textContent = "Пригласить"), 1600);
 });
 
