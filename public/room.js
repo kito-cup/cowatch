@@ -302,6 +302,35 @@ $("tap-to-play").addEventListener("click", async () => {
   player.seek(sync.expected() + 0.1);  // догоняем комнату одним seek'ом
 });
 
+/* ---------------- Диагностика (тап по индикатору синка) ---------------- */
+const VIDEO_ERR = { 1: "прервано", 2: "сеть/CORS", 3: "декодирование", 4: "файл недоступен или формат не поддерживается" };
+$("sync-dot").addEventListener("click", () => {
+  const d = $("diag");
+  d.style.display = d.style.display === "none" ? "" : "none";
+});
+$("diag-resync").addEventListener("click", () => {
+  if (!player || !sync.state) return;
+  player.seek(sync.expected() + 0.1);
+  if (sync.state.playing) player.play(); else player.pause();
+  toast("Пересинхронизировано");
+});
+setInterval(() => {
+  if ($("diag").style.display === "none") return;
+  const v = player?.video; // есть только у HTML5-плеера
+  const err = v?.error ? `${v.error.code} (${VIDEO_ERR[v.error.code] || "?"})` : "нет";
+  const lines = [
+    `версия      v5`,
+    `соединение  ${socket.connected ? "✓ подключено" : "✗ разорвано"}`,
+    `часы        offset ${Math.round(clock.offset)}мс, rtt ${Math.round(clock.rtt)}мс`,
+    `источник    ${sync.state?.source ? sync.state.source.kind + " " + sync.state.source.url.slice(0, 60) : "не выбран"}`,
+    `комната     ${sync.state ? (sync.state.playing ? "▶" : "⏸") + " " + (sync.state.mediaTime | 0) + "с, rate " + sync.state.rate + ", v" + sync.state.version : "—"}`,
+    `плеер       ${player ? player.kind + (player.isPaused() ? " ⏸ " : " ▶ ") + player.getTime().toFixed(1) + "/" + (player.getDuration() | 0) + "с" : "не создан"}`,
+    v ? `видео       readyState ${v.readyState}/4, network ${v.networkState}, ошибка: ${err}` : `видео       (YouTube-iframe)`,
+    `дрейф       ${sync.state?.playing && player ? Math.round((player.getTime() - sync.expected()) * 1000) + "мс" : "—"}`,
+  ];
+  $("diag-body").textContent = lines.join("\n");
+}, 500);
+
 $("copy-link").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(location.href);

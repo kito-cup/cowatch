@@ -21,7 +21,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="text-decoration:none;color:inherit"><span>Co</span>Watch</a>
-      <span style="font-size:11px;color:var(--faint)">v4</span>
+      <span style="font-size:11px;color:var(--faint)">v5</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -32,6 +32,12 @@
       </div>
       <div id="members" class="members"></div>
     </header>
+
+    <!-- диагностика: открывается тапом по индикатору синка -->
+    <div id="diag" class="diag" style="display:none">
+      <pre id="diag-body"></pre>
+      <button id="diag-resync">⟳ Пересинхронизировать</button>
+    </div>
 
     <!-- сцена -->
     <section class="stage" id="stage">
