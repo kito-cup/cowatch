@@ -26,12 +26,11 @@ const rooms = new Map();
 
 const roomId = () => randomBytes(6).toString("base64url").slice(0, 8);
 
-function createRoom() {
-  const id = roomId();
-  rooms.set(id, {
+function createRoomWithId(id) {
+  const room = {
     id,
     state: {
-      source: null,          // { kind:'direct'|'hls'|'youtube', url }
+      source: null,          // { kind:'direct'|'hls'|'youtube'|'rutube', url }
       mediaTime: 0,
       playing: false,
       rate: 1,
@@ -42,7 +41,14 @@ function createRoom() {
     messages: [],            // последние 100
     ownerName: null,
     emptyTimer: null,
-  });
+  };
+  rooms.set(id, room);
+  return room;
+}
+
+function createRoom() {
+  const id = roomId();
+  createRoomWithId(id);
   return id;
 }
 
@@ -65,13 +71,53 @@ app.get("/r/:id", (_req, res) =>
   res.sendFile(path.join(__dirname, "public", "room.html")),
 );
 
+// ---------- Поиск RuTube (прокси: их API не отдаёт CORS браузеру) ----------
+const searchCache = new Map(); // query -> { at, data }
+app.get("/api/rutube/search", async (req, res) => {
+  const q = String(req.query.q || "").slice(0, 80).trim();
+  if (!q) return res.json({ results: [] });
+  const cached = searchCache.get(q.toLowerCase());
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return res.json(cached.data);
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch(
+      "https://rutube.ru/api/search/video/?format=json&query=" + encodeURIComponent(q),
+      { signal: ctl.signal, headers: { "User-Agent": "Mozilla/5.0 (cowatch)" } },
+    );
+    clearTimeout(timer);
+    if (!r.ok) throw new Error("rutube " + r.status);
+    const j = await r.json();
+    const data = {
+      results: (j.results || []).slice(0, 12).map((v) => ({
+        id: v.id,
+        title: String(v.title || "").slice(0, 120),
+        thumb: v.thumbnail_url || "",
+        duration: v.duration || 0,
+        url: v.video_url || `https://rutube.ru/video/${v.id}/`,
+      })),
+    };
+    searchCache.set(q.toLowerCase(), { at: Date.now(), data });
+    if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
+    res.json(data);
+  } catch {
+    // гео-блок / таймаут / смена их API — честно сообщаем клиенту
+    res.status(502).json({ error: "search_unavailable" });
+  }
+});
+
 // ---------- WebSocket ----------
 io.on("connection", (socket) => {
   let joined = null; // { roomId }
 
   socket.on("room:join", (p, ack) => {
-    const { roomId: rid, name } = p || {};
-    const room = rooms.get(rid);
+    const { roomId: rid, name, createIfMissing } = p || {};
+    let room = rooms.get(rid);
+    // постоянная «наша комната»: сервер бесплатного тарифа перезапускается,
+    // но ссылка пары должна жить вечно — воссоздаём комнату с тем же id
+    if (!room && createIfMissing && /^[\w-]{6,16}$/.test(String(rid || ""))) {
+      room = createRoomWithId(String(rid));
+    }
     if (!room) return ack?.({ error: "Комната не найдена или закрыта" });
 
     if (room.emptyTimer) { clearTimeout(room.emptyTimer); room.emptyTimer = null; }
@@ -184,6 +230,29 @@ io.on("connection", (socket) => {
     const member = room?.members.get(socket.id);
     if (!member || !["hug", "kiss"].includes(type)) return;
     io.to(joined.roomId).emit("couple:event", { type, from: member.name });
+  });
+
+  // Реакции-эмодзи поверх видео: whitelist + не чаще 10 за 5 секунд
+  const REACTIONS = ["❤️", "😂", "😮", "🔥", "🥺", "👍", "😭", "🤯"];
+  let reactWindow = [];
+  socket.on("couple:reaction", (p) => {
+    const emoji = p?.emoji;
+    const room = joined && rooms.get(joined.roomId);
+    if (!room || !REACTIONS.includes(emoji)) return;
+    const now = Date.now();
+    reactWindow = reactWindow.filter((t) => now - t < 5000);
+    if (reactWindow.length >= 10) return;
+    reactWindow.push(now);
+    io.to(joined.roomId).emit("couple:reaction", { emoji });
+  });
+
+  // Статистика пары и любимые моменты живут на устройствах (localStorage) —
+  // сервер лишь пересылает их партнёру для слияния, ничего не храня
+  socket.on("pair:sync", (p) => {
+    if (!joined || !p || typeof p !== "object") return;
+    const s = JSON.stringify(p);
+    if (s.length > 50_000) return; // защита от мусора
+    socket.to(joined.roomId).emit("pair:sync", p);
   });
 
   socket.on("disconnect", () => {
