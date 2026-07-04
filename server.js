@@ -167,8 +167,12 @@ io.on("connection", (socket) => {
         s.source = {
           kind: String(a.value.kind || "direct"),
           url: String(a.value.url).slice(0, 2000),
+          title: String(a.value.title || "").slice(0, 120),
         };
         s.mediaTime = 0; s.playing = false; s.rate = 1;
+        // название YouTube подтягиваем сами через oEmbed (фоново)
+        if (s.source.kind === "youtube" && !s.source.title)
+          enrichYoutubeTitle(room, s.source.url);
         break;
       }
       case "play":
@@ -196,12 +200,17 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Чат
+  // Чат (не чаще 10 сообщений за 10 секунд)
+  let chatWindow = [];
   socket.on("chat:send", (p) => {
     const text = p?.text;
     const room = joined && rooms.get(joined.roomId);
     const member = room?.members.get(socket.id);
     if (!room || !member) return;
+    const now = Date.now();
+    chatWindow = chatWindow.filter((t) => now - t < 10_000);
+    if (chatWindow.length >= 10) return;
+    chatWindow.push(now);
     const clean = String(text || "").slice(0, 500).trim();
     if (!clean) return;
     const msg = {
@@ -267,6 +276,29 @@ io.on("connection", (socket) => {
 });
 
 const clampTime = (t) => Math.max(0, Math.min(Number(t) || 0, 60 * 60 * 24));
+
+async function enrichYoutubeTitle(room, url) {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(
+      "https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(url),
+      { signal: ctl.signal },
+    );
+    clearTimeout(timer);
+    if (!r.ok) return;
+    const j = await r.json();
+    const s = room.state;
+    // комната могла сменить видео, пока мы ходили за названием
+    if (s.source?.url !== url || s.source.title || !j.title) return;
+    s.source.title = String(j.title).slice(0, 120);
+    s.version++;
+    io.to(room.id).emit("sync:state", s);
+  } catch { /* название — не повод для ошибок */ }
+}
+
+// лёгкий health-check: главная страница «будит» спящий сервер и ждёт его
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 process.on("uncaughtException", (e) => console.error("[uncaught]", e));
 process.on("unhandledRejection", (e) => console.error("[unhandled]", e));
