@@ -12,7 +12,13 @@ const http = createServer(app);
 const io = new Server(http, { cors: { origin: true } });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  setHeaders(res, filePath) {
+    // код всегда свежий (ревалидация по ETag), тяжёлые медиа — кэшируются
+    if (/\.(html|js|css)$/.test(filePath)) res.setHeader("Cache-Control", "no-cache");
+    else res.setHeader("Cache-Control", "public, max-age=86400");
+  },
+}));
 
 // ---------- Комнаты (в памяти; для масштаба заменяется на Redis) ----------
 const ROOM_TTL_MS = 10 * 60 * 1000; // комната живёт 10 мин после опустения
@@ -63,7 +69,8 @@ app.get("/r/:id", (_req, res) =>
 io.on("connection", (socket) => {
   let joined = null; // { roomId }
 
-  socket.on("room:join", ({ roomId: rid, name }, ack) => {
+  socket.on("room:join", (p, ack) => {
+    const { roomId: rid, name } = p || {};
     const room = rooms.get(rid);
     if (!room) return ack?.({ error: "Комната не найдена или закрыта" });
 
@@ -93,15 +100,20 @@ io.on("connection", (socket) => {
   });
 
   // Точная синхронизация часов
-  socket.on("sync:ping", ({ t0 }) =>
-    socket.emit("sync:pong", { t0, serverTime: Date.now() }),
+  socket.on("sync:ping", (p) =>
+    socket.emit("sync:pong", { t0: p?.t0, serverTime: Date.now() }),
   );
 
   // Управление воспроизведением — сервер авторитетен
   socket.on("sync:action", (a) => {
     const room = joined && rooms.get(joined.roomId);
-    if (!room || typeof a !== "object") return;
+    if (!room || !a || typeof a !== "object") return;
     const s = room.state;
+    // время: доверяем клиенту, но при мусоре считаем сами по авторитетному состоянию
+    const elapsed = s.playing ? ((Date.now() - s.updatedAt) / 1000) * s.rate : 0;
+    const t = Number.isFinite(Number(a.time))
+      ? clampTime(a.time)
+      : clampTime(s.mediaTime + elapsed);
 
     switch (a.type) {
       case "source": {
@@ -114,15 +126,15 @@ io.on("connection", (socket) => {
         break;
       }
       case "play":
-        s.mediaTime = clampTime(a.time); s.playing = true; break;
+        s.mediaTime = t; s.playing = true; break;
       case "pause":
-        s.mediaTime = clampTime(a.time); s.playing = false; break;
+        s.mediaTime = t; s.playing = false; break;
       case "seek":
-        s.mediaTime = clampTime(a.time); break;
+        s.mediaTime = t; break;
       case "rate": {
         const r = Number(a.value);
         if (!(r >= 0.25 && r <= 2)) return;
-        s.mediaTime = clampTime(a.time); s.rate = r; break;
+        s.mediaTime = t; s.rate = r; break;
       }
       default: return;
     }
@@ -139,7 +151,8 @@ io.on("connection", (socket) => {
   });
 
   // Чат
-  socket.on("chat:send", ({ text }) => {
+  socket.on("chat:send", (p) => {
+    const text = p?.text;
     const room = joined && rooms.get(joined.roomId);
     const member = room?.members.get(socket.id);
     if (!room || !member) return;
@@ -165,7 +178,8 @@ io.on("connection", (socket) => {
   });
 
   // Милые события — просто ретранслируем
-  socket.on("couple:event", ({ type }) => {
+  socket.on("couple:event", (p) => {
+    const type = p?.type;
     const room = joined && rooms.get(joined.roomId);
     const member = room?.members.get(socket.id);
     if (!member || !["hug", "kiss"].includes(type)) return;
@@ -184,6 +198,9 @@ io.on("connection", (socket) => {
 });
 
 const clampTime = (t) => Math.max(0, Math.min(Number(t) || 0, 60 * 60 * 24));
+
+process.on("uncaughtException", (e) => console.error("[uncaught]", e));
+process.on("unhandledRejection", (e) => console.error("[unhandled]", e));
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => console.log(`CoWatch → http://localhost:${PORT}`));
