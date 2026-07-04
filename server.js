@@ -54,7 +54,7 @@ function createRoom() {
 
 function publicMembers(room) {
   return [...room.members.entries()].map(([sid, m]) => ({
-    id: sid, name: m.name, hue: m.hue, isOwner: m.isOwner,
+    id: sid, name: m.name, hue: m.hue, isOwner: m.isOwner, status: m.status || null,
   }));
 }
 
@@ -252,7 +252,19 @@ io.on("connection", (socket) => {
     reactWindow = reactWindow.filter((t) => now - t < 5000);
     if (reactWindow.length >= 10) return;
     reactWindow.push(now);
-    io.to(joined.roomId).emit("couple:reaction", { emoji });
+    const member = room.members.get(socket.id);
+    io.to(joined.roomId).emit("couple:reaction", { emoji, from: member?.name || "" });
+  });
+
+  // Статусы: «ушёл за чаем» и т.п. — бейдж у аватара
+  const STATUSES = ["☕", "🍿", "🚻", "😴"];
+  socket.on("couple:status", (p) => {
+    const room = joined && rooms.get(joined.roomId);
+    const member = room?.members.get(socket.id);
+    if (!member) return;
+    const emoji = p?.emoji;
+    member.status = STATUSES.includes(emoji) ? emoji : null;
+    io.to(joined.roomId).emit("presence:update", publicMembers(room));
   });
 
   // Статистика пары и любимые моменты живут на устройствах (localStorage) —
