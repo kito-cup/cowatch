@@ -75,7 +75,8 @@ input { font: inherit; color: inherit; }
 @media (max-width: 760px) {
   .room {
     grid-template-columns: 1fr;
-    grid-template-rows: 52px auto minmax(200px, 1fr);
+    /* зона видео обязана иметь высоту: её содержимое позиционировано абсолютно */
+    grid-template-rows: 52px minmax(230px, 42dvh) 1fr;
     grid-template-areas: "top" "stage" "chat";
   }
 }
