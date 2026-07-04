@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CoWatch — смотрите вместе</title>
+  <link rel="preconnect" href="https://rsms.me" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="landing">
+    <div class="landing-card">
+      <div class="logo">CoWatch</div>
+      <p class="tagline">Самое приятное место, где двое смотрят видео вместе</p>
+
+      <input id="name" class="name-input" maxlength="24"
+             placeholder="Ваше имя" autocomplete="off" />
+      <button id="create" class="btn-primary">Создать комнату</button>
+
+      <p class="hint">Без регистрации. Комната — это просто ссылка,<br />отправьте её человеку и смотрите.</p>
+    </div>
+  </main>
+
+  <script>
+    const nameEl = document.getElementById("name");
+    nameEl.value = localStorage.getItem("cw:name") || "";
+
+    document.getElementById("create").addEventListener("click", async () => {
+      const name = nameEl.value.trim() || "Гость";
+      localStorage.setItem("cw:name", name);
+      const res = await fetch("/api/rooms", { method: "POST" });
+      const { id } = await res.json();
+      location.href = `/r/${id}`;
+    });
+
+    nameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("create").click();
+    });
+  </script>
+</body>
+</html>
