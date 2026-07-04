@@ -45,7 +45,10 @@
           <input id="source-input" placeholder="https://…" autocomplete="off" />
           <button id="source-go">Смотреть</button>
         </div>
-        <p class="source-note">Видео запустится синхронно у всех в комнате.</p>
+        <p class="source-note">Видео запустится синхронно у всех в комнате.
+          <br /><a href="#" style="color:var(--accent)"
+            onclick="event.preventDefault();document.getElementById('source-input').value=location.origin+'/test.mp4';document.getElementById('source-go').click()">
+            Включить тестовое видео с таймером</a></p>
       </div>
 
       <!-- сюда монтируется плеер -->
