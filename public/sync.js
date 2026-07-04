@@ -3,6 +3,7 @@
 // сравнивает позицию плеера с ожидаемой. Малый дрейф лечится изменением
 // скорости на ±5% (незаметно), большой — перемоткой.
 
+(() => {
 class ClockSync {
   constructor(socket) {
     this.socket = socket;
@@ -128,3 +129,4 @@ class SyncEngine {
 }
 
 window.CW_SYNC = { ClockSync, SyncEngine };
+})();

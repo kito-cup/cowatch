@@ -3,6 +3,7 @@
 // getBuffered, setMuted, isReady, on(event, cb), destroy.
 // События: 'ready' | 'buffering' | 'canplay' | 'timeupdate' | 'user-play' | 'user-pause' | 'user-seek'
 
+(() => {
 /* ---------- Определение типа источника ---------- */
 function resolveSource(url) {
   url = url.trim();
@@ -155,3 +156,4 @@ function createPlayer(host, source) {
 }
 
 window.CW_PLAYERS = { resolveSource, createPlayer };
+})();
