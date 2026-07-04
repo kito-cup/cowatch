@@ -28,10 +28,12 @@ function join() {
     selfId = res.selfId;
     clock.measure();
     renderMembers(res.members);
+    $("chat-log").innerHTML = ""; // rejoin: снапшот заново, без дублей
     res.messages.forEach(renderMessage);
     if (res.state.source) mountSource(res.state.source);
     sync.state = res.state;
-    setInterval(() => clock.measure(), 30000);
+    if (!window.__cwClockTimer)
+      window.__cwClockTimer = setInterval(() => clock.measure(), 30000);
   });
 }
 socket.on("connect", join);
@@ -122,9 +124,11 @@ function togglePlay() {
 
 $("timeline").addEventListener("click", (e) => {
   if (!player) return;
+  const dur = player.getDuration();
+  if (!isFinite(dur) || dur <= 0) return; // live-поток / метаданные ещё не загружены
   const r = $("timeline").getBoundingClientRect();
   const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-  sync.userSeek(frac * player.getDuration());
+  sync.userSeek(frac * dur);
 });
 
 const RATES = [1, 1.25, 1.5, 2, 0.75];

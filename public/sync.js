@@ -7,6 +7,7 @@
 class ClockSync {
   constructor(socket) {
     this.socket = socket;
+    this.samples = [];
     this.offset = 0; // serverTime - clientTime
     this.rtt = 0;
     socket.on("sync:pong", ({ t0, serverTime }) => {
@@ -87,13 +88,16 @@ class SyncEngine {
     const abs = Math.abs(drift);
     this.onDrift(drift);
 
+    // YouTube не принимает дробные скорости врода 1.05 — только перемотка
+    const canNudge = p.kind !== "youtube";
+    const seekAt = canNudge ? 1.0 : 0.75;
     if (abs < 0.15) {
       if (this.nudging) { p.setRate(s.rate); this.nudging = false; }
-    } else if (abs < 1.0) {
+    } else if (abs < seekAt && canNudge) {
       // незаметная коррекция скоростью ±5%
       p.setRate(s.rate * (drift > 0 ? 0.95 : 1.05));
       this.nudging = true;
-    } else {
+    } else if (abs >= seekAt) {
       p.seek(this.expected() + 0.1);
       p.setRate(s.rate);
       this.nudging = false;

@@ -86,12 +86,14 @@ class YouTubePlayer {
     this.suppressUntil = 0;   // окно, когда onStateChange — это мы сами, а не юзер
     this.lastPoll = null;     // { t, at } для детекта пользовательской перемотки
     this.ready = false;
+    this.destroyed = false;
 
     const div = document.createElement("div");
     div.id = "yt-host";
     host.appendChild(div);
 
     loadYouTubeApi().then(() => {
+      if (this.destroyed) return; // источник уже сменили, не создаём мертвеца
       this.yt = new YT.Player("yt-host", {
         videoId: source.videoId,
         playerVars: { rel: 0, playsinline: 1, modestbranding: 1 },
@@ -146,7 +148,12 @@ class YouTubePlayer {
   getBuffered() { return (this.yt?.getVideoLoadedFraction?.() || 0) * this.getDuration(); }
   setMuted(m) { m ? this.yt?.mute() : this.yt?.unMute(); }
   isPaused() { return this.yt?.getPlayerState?.() !== YT?.PlayerState?.PLAYING; }
-  destroy() { clearInterval(this.pollTimer); this.yt?.destroy(); document.getElementById("yt-host")?.remove(); }
+  destroy() {
+    this.destroyed = true;
+    clearInterval(this.pollTimer);
+    this.yt?.destroy();
+    document.getElementById("yt-host")?.remove();
+  }
 }
 
 function createPlayer(host, source) {
