@@ -40,6 +40,7 @@ class Html5Player {
     v.addEventListener("waiting", () => this.emit("buffering", true));
     v.addEventListener("canplay", () => this.emit("buffering", false));
     v.addEventListener("timeupdate", () => this.emit("timeupdate", v.currentTime));
+    v.addEventListener("ended", () => this.emit("ended"));
     v.addEventListener("error", () =>
       this.emit("error", "Не удалось загрузить видео. Проверьте ссылку — возможно, сервер-источник запрещает доступ (CORS) или файл недоступен."),
     );
@@ -114,6 +115,7 @@ class YouTubePlayer {
 
   onState(s) {
     const S = YT.PlayerState;
+    if (s === S.ENDED) return this.emit("ended");
     if (s === S.BUFFERING) return this.emit("buffering", true);
     if (s === S.PLAYING) {
       this.emit("buffering", false);
@@ -200,6 +202,9 @@ class RuTubePlayer {
           } else if (st === "paused" || st === "stopped") {
             this._playing = false;
             if (!this.suppressed && st === "paused") this.emit("user-pause", this.getTime());
+            // «stopped» у самого конца ролика считаем окончанием
+            if (st === "stopped" && this._dur && this.getTime() > this._dur - 3)
+              this.emit("ended");
           } else if (st === "buffering") this.emit("buffering", true);
           break;
         }

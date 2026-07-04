@@ -4,12 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CoWatch — смотрите вместе</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <main class="landing">
     <div class="landing-card">
-      <div class="logo">CoWatch</div>
+      <img class="logo-img" src="/logo.png" alt="CoWatch" />
       <p class="tagline">Самое приятное место, где двое смотрят видео вместе</p>
 
       <input id="name" class="name-input" maxlength="24"
@@ -17,7 +18,7 @@
       <button id="pair" class="btn-primary">💜 Наша комната</button>
       <button id="create" class="btn-primary" style="margin-top:10px;background:var(--surface);border:1px solid var(--border);box-shadow:none">Новая комната</button>
 
-      <p class="hint">«Наша комната» — постоянная: одна и та же ссылка<br />каждый вечер, статистика копится.</p>
+      <p class="hint" id="hint">«Наша комната» — постоянная: одна и та же ссылка<br />каждый вечер, статистика копится.</p>
     </div>
   </main>
 
@@ -25,10 +26,20 @@
     const nameEl = document.getElementById("name");
     nameEl.value = localStorage.getItem("cw:name") || "";
 
+    // бесплатный сервер засыпает без посетителей — честно показываем пробуждение
+    async function wakingFetch(url, opts) {
+      const slowTimer = setTimeout(() => {
+        document.getElementById("hint").textContent =
+          "Сервер просыпается, это займёт до минуты…";
+      }, 2500);
+      try { return await fetch(url, opts); }
+      finally { clearTimeout(slowTimer); }
+    }
+
     document.getElementById("create").addEventListener("click", async () => {
       const name = nameEl.value.trim() || "Гость";
       localStorage.setItem("cw:name", name);
-      const res = await fetch("/api/rooms", { method: "POST" });
+      const res = await wakingFetch("/api/rooms", { method: "POST" });
       const { id } = await res.json();
       location.href = `/r/${id}`;
     });
@@ -40,7 +51,7 @@
       localStorage.setItem("cw:name", name);
       let id = localStorage.getItem("cw:pairRoom");
       if (!id) {
-        const res = await fetch("/api/rooms", { method: "POST" });
+        const res = await wakingFetch("/api/rooms", { method: "POST" });
         id = (await res.json()).id;
         localStorage.setItem("cw:pairRoom", id);
       }

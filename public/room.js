@@ -70,7 +70,8 @@ function mountSource(source) {
   const resolved = resolveSource(source.url);
   player = createPlayer($("player-host"), resolved);
   sync.attach(player);
-  toast(`Источник: ${resolved.kind === "youtube" ? "YouTube" : resolved.kind.toUpperCase()}`);
+  const srcName = { youtube: "YouTube", rutube: "RuTube", hls: "HLS", direct: "видео" }[resolved.kind] || resolved.kind;
+  toast(source.title ? `▶ ${source.title}` : `Источник: ${srcName}`);
 
   const isEmbed = resolved.kind === "youtube" || resolved.kind === "rutube";
   $("controls").style.display = isEmbed ? "none" : ""; // у embed-плееров свой UI
@@ -96,6 +97,8 @@ function mountSource(source) {
   player.on("user-play", () => sync.userPlay());
   player.on("user-pause", () => sync.userPause());
   player.on("user-seek", (t) => sync.userSeek(t));
+  bindEnded();
+  $("ended-overlay").style.display = "none"; // новое видео — старый финал не нужен
 }
 
 /* ---------------- Контролы (HTML5/HLS) ---------------- */
@@ -374,9 +377,23 @@ const esc = (s) =>
 $("search-go").addEventListener("click", doSearch);
 $("search-input").addEventListener("keydown", (e) => e.key === "Enter" && doSearch());
 
+function looksLikeUrl(q) {
+  return /^https?:\/\//i.test(q) || /^www\./i.test(q) ||
+    /(rutube\.ru|youtu\.be|youtube\.com)/i.test(q) ||
+    /\.(mp4|webm|m3u8)(\?|$)/i.test(q);
+}
+
 async function doSearch() {
   const q = $("search-input").value.trim();
   if (!q) return;
+  // вставили ссылку? включаем её сразу, никакого поиска
+  if (looksLikeUrl(q)) {
+    const url = /^https?:/i.test(q) ? q : "https://" + q;
+    const src = resolveSource(url);
+    socket.emit("sync:action", { type: "source", value: { kind: src.kind, url } });
+    $("search-input").value = "";
+    return;
+  }
   $("search-results").innerHTML = `<div class="search-note">Ищем…</div>`;
   try {
     const r = await fetch("/api/rutube/search?q=" + encodeURIComponent(q));
@@ -393,7 +410,10 @@ async function doSearch() {
       b.innerHTML = `<img loading="lazy" src="${esc(v.thumb)}" alt="">
         <div class="rc-title">${esc(v.title)}${v.duration ? ` · ${fmt(v.duration)}` : ""}</div>`;
       b.addEventListener("click", () => {
-        socket.emit("sync:action", { type: "source", value: { kind: "rutube", url: v.url } });
+        socket.emit("sync:action", {
+          type: "source",
+          value: { kind: "rutube", url: v.url, title: v.title },
+        });
       });
       $("search-results").appendChild(b);
     });
@@ -506,7 +526,7 @@ $("btn-pin").addEventListener("click", () => {
     url,
     kind: sync.state.source.kind,
     time: Math.floor(player.getTime()),
-    title: document.title !== "CoWatch — комната" ? document.title : url.split("/").pop(),
+    title: sync.state.source.title || url.split("/").pop(),
     at: Date.now(),
   };
   pair.moments.push(mo);
@@ -536,7 +556,7 @@ setInterval(() => {
   const st = sync.state;
   if (!st?.source || !st.playing || !player) return;
   localStorage.setItem("cw:resume:" + roomId, JSON.stringify({
-    url: st.source.url, kind: st.source.kind,
+    url: st.source.url, kind: st.source.kind, title: st.source.title || "",
     time: Math.floor(player.getTime()),
     at: Date.now(),
   }));
@@ -547,9 +567,76 @@ function updateResumeButton() {
   const btn = $("resume-btn");
   if (!r || sync.state?.source || r.time < 30) { btn.style.display = "none"; return; }
   btn.style.display = "";
-  btn.textContent = `▶ Продолжить прошлое видео с ${fmt(r.time)}`;
+  btn.textContent = `▶ Продолжить${r.title ? " «" + r.title.slice(0, 40) + "»" : ""} с ${fmt(r.time)}`;
   btn.onclick = () => {
-    socket.emit("sync:action", { type: "source", value: { kind: r.kind, url: r.url } });
+    socket.emit("sync:action", { type: "source", value: { kind: r.kind, url: r.url, title: r.title } });
     setTimeout(() => sync.userSeek(r.time), 2500);
   };
 }
+
+/* ================= v10: экран окончания видео ================= */
+function bindEnded() {
+  if (!player) return;
+  player.on("ended", () => {
+    $("ended-overlay").style.display = "";
+    $("big-play").style.display = "none";
+  });
+}
+$("ended-replay").addEventListener("click", () => {
+  $("ended-overlay").style.display = "none";
+  sync.userSeek(0);
+  sync.userPlay();
+});
+$("ended-new").addEventListener("click", () => {
+  $("ended-overlay").style.display = "none";
+  $("source-card").style.display = "";
+  $("search-input").focus();
+});
+
+/* ================= v10: экран не гаснет во время просмотра ================= */
+let wakeLock = null;
+setInterval(async () => {
+  const playing = !!sync.state?.playing && !!player && !player.isPaused();
+  try {
+    if (playing && !wakeLock && "wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => (wakeLock = null));
+    } else if (!playing && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch { wakeLock = null; } // не поддерживается / нет разрешения — не страшно
+}, 3000);
+
+/* ================= v10: возврат во вкладку = мгновенный ресинк =================
+   iOS замораживает таймеры в фоне: после возврата позиция уезжает на всё
+   время отсутствия. Ловим момент возврата и догоняем комнату одним seek'ом. */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  clock.start(); // свежие пинги часов
+  setTimeout(() => {
+    if (!player || !sync.state) return;
+    const drift = Math.abs(player.getTime() - sync.expected());
+    if (drift > 1) {
+      player.seek(sync.expected() + 0.1);
+      if (sync.state.playing && player.isPaused()) player.play();
+    }
+  }, 900);
+});
+
+/* ================= v10: двойной тап по краям = ±10 секунд ================= */
+let lastTap = { at: 0, x: 0 };
+$("stage").addEventListener("pointerup", (e) => {
+  if (!isTouch || !player) return;
+  if (e.target !== $("player-host") && e.target.tagName !== "VIDEO") return;
+  const now = performance.now();
+  const w = $("stage").getBoundingClientRect().width;
+  const frac = e.clientX / w;
+  if (now - lastTap.at < 350 && Math.abs(e.clientX - lastTap.x) < 60) {
+    if (frac < 0.3) { sync.userSeek(Math.max(0, player.getTime() - 10)); toast("−10 сек"); }
+    else if (frac > 0.7) { sync.userSeek(player.getTime() + 10); toast("+10 сек"); }
+    lastTap = { at: 0, x: 0 };
+    return;
+  }
+  lastTap = { at: now, x: e.clientX };
+});

@@ -380,3 +380,20 @@ input { font: inherit; color: inherit; }
   background: #ffd166; transform: translate(-50%, -50%); z-index: 2;
   box-shadow: 0 0 6px rgba(255,209,102,.7);
 }
+
+.logo-img { width: min(300px, 72%); height: auto; margin-bottom: 2px; }
+
+/* экран окончания видео */
+.ended-overlay {
+  position: absolute; inset: 0; z-index: 7;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(17,17,17,.72); backdrop-filter: blur(8px);
+}
+.ended-title { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+.ended-btns { display: flex; gap: 10px; }
+.ended-btns button {
+  padding: 12px 20px; border-radius: var(--r-m); font-weight: 600; font-size: 14.5px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.ended-btns #ended-replay { background: var(--grad); border: 0; }
+.ended-btns button:active { transform: scale(.97); }
