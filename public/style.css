@@ -582,3 +582,12 @@ body[data-chatsize="l"] .msg .text { font-size: 15.5px; }
 @keyframes star-fall {
   to { transform: translateY(110vh) rotate(200deg); opacity: .1; }
 }
+
+/* ---------- v15: фикс отступа шапки ----------
+   Внутри правила .topbar shorthand `padding: 0 14px` затирал padding-top.
+   Здесь, в конце каскада, его уже никто не перебьёт. */
+.topbar {
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-left: max(14px, env(safe-area-inset-left)) !important;
+  padding-right: max(14px, env(safe-area-inset-right)) !important;
+}

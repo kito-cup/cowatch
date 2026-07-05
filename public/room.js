@@ -2,7 +2,7 @@
 const { resolveSource, createPlayer } = window.CW_PLAYERS;
 const { ClockSync, SyncEngine } = window.CW_SYNC;
 
-const CW_VERSION = "v7";
+const CW_VERSION = document.getElementById("ver")?.textContent || "v?";
 const roomId = location.pathname.split("/").pop();
 const myName = localStorage.getItem("cw:name") || prompt("Ваше имя:")?.slice(0, 24) || "Гость";
 localStorage.setItem("cw:name", myName);
@@ -371,6 +371,7 @@ setInterval(() => {
   const err = v?.error ? `${v.error.code} (${VIDEO_ERR[v.error.code] || "?"})` : "нет";
   const lines = [
     `версия      ${CW_VERSION}`,
+    `запуск      ${matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "приложение" : "браузер"} · отступ шапки ${getComputedStyle(document.querySelector(".topbar")).paddingTop}`,
     `соединение  ${socket.connected ? "✓ подключено" : "✗ разорвано"}`,
     `часы        offset ${Math.round(clock.offset)}мс, rtt ${Math.round(clock.rtt)}мс`,
     `источник    ${sync.state?.source ? sync.state.source.kind + " " + sync.state.source.url.slice(0, 60) : "не выбран"}`,
