@@ -1,0 +1,13 @@
+{
+  "name": "CoWatch — смотрим вместе",
+  "short_name": "CoWatch",
+  "description": "Самое приятное место, где двое смотрят видео вместе",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111114",
+  "theme_color": "#111114",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
