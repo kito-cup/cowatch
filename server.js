@@ -222,6 +222,7 @@ io.on("connection", (socket) => {
       id: randomBytes(4).toString("hex"),
       author: member.name,
       hue: member.hue,
+      avatar: member.avatar || null,
       text: clean,
       at: Date.now(),
     };
