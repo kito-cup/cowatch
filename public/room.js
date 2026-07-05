@@ -976,12 +976,19 @@ function maybeLoveExplosion(text) {
 
 // пять быстрых тапов по логотипу
 let logoTaps = [];
+let logoNav = null;
 document.querySelector(".brand").addEventListener("click", (e) => {
+  e.preventDefault(); // навигацией управляем сами: 1 тап — на главную, 5 — сюрприз
+  clearTimeout(logoNav);
   const now = performance.now();
   logoTaps = logoTaps.filter((t) => now - t < 2500);
   logoTaps.push(now);
+  if (logoTaps.length === 1) {
+    // одиночный тап: если за полсекунды не пришёл второй — уходим на главную
+    logoNav = setTimeout(() => { if (logoTaps.length === 1) location.href = "/"; }, 500);
+    return;
+  }
   if (logoTaps.length < 5) return;
-  e.preventDefault();
   logoTaps = [];
   const rain = document.createElement("div");
   rain.className = "stars-rain";
