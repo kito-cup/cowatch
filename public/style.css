@@ -68,7 +68,7 @@ input { font: inherit; color: inherit; }
 .room {
   height: 100dvh;
   display: grid;
-  grid-template-rows: 52px 1fr;
+  grid-template-rows: calc(52px + env(safe-area-inset-top, 0px)) 1fr;
   grid-template-columns: 1fr 320px;
   grid-template-areas: "top top" "stage chat";
 }
@@ -76,13 +76,14 @@ input { font: inherit; color: inherit; }
   .room {
     grid-template-columns: 1fr;
     /* зона видео обязана иметь высоту: её содержимое позиционировано абсолютно */
-    grid-template-rows: 52px minmax(230px, 42dvh) 1fr;
+    grid-template-rows: calc(52px + env(safe-area-inset-top, 0px)) minmax(230px, 42dvh) 1fr;
     grid-template-areas: "top" "stage" "chat";
   }
 }
 
 .topbar {
   grid-area: top;
+  padding-top: env(safe-area-inset-top, 0px);
   display: flex; align-items: center; gap: 12px;
   padding: 0 14px;
   background: var(--glass); backdrop-filter: blur(20px);
@@ -282,7 +283,7 @@ input { font: inherit; color: inherit; }
 
 /* панель диагностики */
 .diag {
-  position: fixed; top: 58px; right: 10px; z-index: 60;
+  position: fixed; top: calc(58px + env(safe-area-inset-top, 0px)); right: 10px; z-index: 60;
   width: min(320px, calc(100vw - 20px));
   background: var(--glass); backdrop-filter: blur(20px);
   border: 1px solid var(--border); border-radius: var(--r-m);
@@ -408,7 +409,7 @@ input { font: inherit; color: inherit; }
 @media (max-width: 950px) and (orientation: landscape) and (pointer: coarse) {
   .room {
     grid-template-columns: 1fr 250px;
-    grid-template-rows: 44px 1fr;
+    grid-template-rows: calc(44px + env(safe-area-inset-top, 0px)) 1fr;
     grid-template-areas: "top top" "stage chat";
   }
   .topbar { height: 44px; }
@@ -530,3 +531,54 @@ button, .avatar, .love-btns, .controls, .topbar, .big-play, .tap-to-play {
 }
 /* удержание суперобнимашки — только наш жест */
 #hug-btn { touch-action: none; }
+
+/* ---------- v14: настройки, темы, пасхалки ---------- */
+/* ряд реакций листается, если не влезает */
+.love-btns { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.love-btns::-webkit-scrollbar { display: none; }
+.love-btns button { flex-shrink: 0; }
+
+/* панель настроек */
+.settings-panel h3 { font-size: 14px; margin: 2px 0 10px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.set-row label { font-size: 13px; color: var(--muted); }
+.theme-dots { display: flex; gap: 8px; }
+.theme-dots button {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent;
+}
+.theme-dots button.on { border-color: #fff; }
+.seg { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.seg button { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; color: var(--muted); }
+.seg button.on { background: var(--grad); color: #fff; }
+.tgl {
+  width: 44px; height: 26px; border-radius: 999px; position: relative;
+  background: var(--surface); border: 1px solid var(--border); transition: background .2s;
+}
+.tgl::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+  border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s;
+}
+.tgl.on { background: var(--accent); }
+.tgl.on::after { transform: translateX(18px); background: #fff; }
+input[type="range"] { width: 130px; accent-color: var(--accent); }
+
+/* выключатель анимаций */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after {
+  animation: none !important; transition: none !important;
+}
+
+/* размер текста чата */
+body[data-chatsize="s"] .msg .text { font-size: 12.5px; }
+body[data-chatsize="l"] .msg .text { font-size: 15.5px; }
+
+/* персональная яркость видео */
+.stage video, .stage iframe { filter: brightness(var(--vid-bright, 1)); }
+
+/* звездопад пасхалки */
+.stars-rain span {
+  position: absolute; top: -30px; font-size: 22px; pointer-events: none; z-index: 9;
+  animation: star-fall 2.4s ease-in forwards;
+}
+@keyframes star-fall {
+  to { transform: translateY(110vh) rotate(200deg); opacity: .1; }
+}

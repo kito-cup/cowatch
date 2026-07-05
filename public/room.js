@@ -275,6 +275,7 @@ function renderMessage(m) {
     $("stage").appendChild(fs);
     setTimeout(() => fs.remove(), 4200);
   }
+  maybeLoveExplosion(m.text);
   const el = document.createElement("div");
   el.className = "msg";
   el.innerHTML = `
@@ -311,7 +312,7 @@ socket.on("couple:event", ({ type, from }) => {
       w.innerHTML = "<span>👋</span>";
       $("stage").appendChild(w);
       setTimeout(() => w.remove(), 1500);
-      try { navigator.vibrate?.([90, 60, 90, 60, 90]); } catch {}
+      buzz([90, 60, 90, 60, 90]);
     }
     return;
   }
@@ -327,7 +328,7 @@ socket.on("couple:event", ({ type, from }) => {
         setTimeout(() => h.remove(), 2700);
       }, i * 55);
     }
-    try { navigator.vibrate?.([60, 40, 60, 40, 120]); } catch {}
+    buzz([60, 40, 60, 40, 120]);
     return;
   }
   const emoji = type === "hug" ? "🤗" : "💋";
@@ -480,13 +481,15 @@ document.querySelectorAll("[data-react]").forEach((b) =>
 );
 const hearts = { mine: 0, theirs: 0 };
 socket.on("couple:reaction", ({ emoji, from }) => {
-  const s = document.createElement("span");
-  s.className = "fly-react";
-  s.textContent = emoji;
-  s.style.left = 12 + Math.random() * 76 + "%";
-  $("stage").appendChild(s);
-  setTimeout(() => s.remove(), 2300);
-  try { navigator.vibrate?.(25); } catch {}
+  if (settings.fxReact) {
+    const s = document.createElement("span");
+    s.className = "fly-react";
+    s.textContent = emoji;
+    s.style.left = 12 + Math.random() * 76 + "%";
+    $("stage").appendChild(s);
+    setTimeout(() => s.remove(), 2300);
+  }
+  buzz(25);
 
   // сердечки от обоих в течение 3 секунд = совпадение 💞
   if (emoji === "❤️") {
@@ -513,7 +516,7 @@ function heartMatch() {
       setTimeout(() => h.remove(), 2700);
     }, i * 70);
   }
-  try { navigator.vibrate?.([40, 60, 40]); } catch {}
+  buzz([40, 60, 40]);
   setTimeout(() => wrap.remove(), 1700);
 }
 
@@ -882,4 +885,114 @@ window.addEventListener("beforeunload", (e) => {
     e.preventDefault();
     e.returnValue = ""; // Android/десктоп покажут «Точно выйти?»; iOS такое не умеет
   }
+});
+
+/* ================= v14: настройки ================= */
+const THEMES = {
+  violet: ["#5865F2", "#6C5CE7"],
+  pink:   ["#EC4899", "#F472B6"],
+  mint:   ["#10B981", "#34D399"],
+  amber:  ["#F59E0B", "#F97316"],
+  sky:    ["#0EA5E9", "#38BDF8"],
+};
+const SET_DEF = { theme: "violet", chatSize: "m", bright: 100, anim: true, fxReact: true, vibro: true };
+let settings = SET_DEF;
+try { settings = { ...SET_DEF, ...JSON.parse(localStorage.getItem("cw:settings") || "{}") }; } catch {}
+
+function buzz(pattern) {
+  if (!settings.vibro) return;
+  try { navigator.vibrate?.(pattern); } catch {}
+}
+
+function applySettings() {
+  const [a, b] = THEMES[settings.theme] || THEMES.violet;
+  const root = document.documentElement.style;
+  root.setProperty("--accent", a);
+  root.setProperty("--accent2", b);
+  root.setProperty("--grad", `linear-gradient(135deg, ${a}, ${b})`);
+  root.setProperty("--vid-bright", settings.bright / 100);
+  document.body.dataset.chatsize = settings.chatSize;
+  document.body.classList.toggle("no-anim", !settings.anim);
+  // отрисовка контролов панели
+  document.querySelectorAll("#theme-dots button").forEach((d) =>
+    d.classList.toggle("on", d.dataset.t === settings.theme));
+  document.querySelectorAll("#chatsize-seg button").forEach((d) =>
+    d.classList.toggle("on", d.dataset.v === settings.chatSize));
+  $("set-bright").value = settings.bright;
+  $("tgl-anim").classList.toggle("on", settings.anim);
+  $("tgl-fx").classList.toggle("on", settings.fxReact);
+  $("tgl-vibro").classList.toggle("on", settings.vibro);
+}
+function saveSettings() {
+  localStorage.setItem("cw:settings", JSON.stringify(settings));
+  applySettings();
+}
+
+(function buildSettings() {
+  Object.entries(THEMES).forEach(([name, [a, b]]) => {
+    const d = document.createElement("button");
+    d.dataset.t = name;
+    d.style.background = `linear-gradient(135deg, ${a}, ${b})`;
+    d.addEventListener("click", () => { settings.theme = name; saveSettings(); });
+    $("theme-dots").appendChild(d);
+  });
+  document.querySelectorAll("#chatsize-seg button").forEach((d) =>
+    d.addEventListener("click", () => { settings.chatSize = d.dataset.v; saveSettings(); }));
+  $("set-bright").addEventListener("input", () => {
+    settings.bright = Number($("set-bright").value); saveSettings();
+  });
+  const tgl = (id, key) => $(id).addEventListener("click", () => {
+    settings[key] = !settings[key]; saveSettings();
+  });
+  tgl("tgl-anim", "anim"); tgl("tgl-fx", "fxReact"); tgl("tgl-vibro", "vibro");
+  applySettings();
+})();
+
+$("settings-btn").addEventListener("click", () => {
+  const p = $("settings-panel");
+  p.style.display = p.style.display === "none" ? "" : "none";
+});
+$("settings-close").addEventListener("click", () => ($("settings-panel").style.display = "none"));
+
+/* ================= v14: пасхалки 🤫 ================= */
+// признание в чате не остаётся без ответа вселенной
+const LOVE_RE = /(я\s+(тебя|вас)\s+люблю|люблю\s+тебя|love\s+you|люблю\s+тебя,?\s*\S*)/i;
+function maybeLoveExplosion(text) {
+  if (!LOVE_RE.test(text)) return;
+  for (let i = 0; i < 26; i++) {
+    setTimeout(() => {
+      const h = document.createElement("span");
+      h.textContent = ["💜", "💗", "🤍", "💞"][i % 4];
+      h.style.left = 3 + Math.random() * 94 + "%";
+      h.style.fontSize = 20 + Math.random() * 24 + "px";
+      $("hearts").appendChild(h);
+      setTimeout(() => h.remove(), 2700);
+    }, i * 70);
+  }
+  buzz([50, 80, 50]);
+}
+
+// пять быстрых тапов по логотипу
+let logoTaps = [];
+document.querySelector(".brand").addEventListener("click", (e) => {
+  const now = performance.now();
+  logoTaps = logoTaps.filter((t) => now - t < 2500);
+  logoTaps.push(now);
+  if (logoTaps.length < 5) return;
+  e.preventDefault();
+  logoTaps = [];
+  const rain = document.createElement("div");
+  rain.className = "stars-rain";
+  rain.style.cssText = "position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:9";
+  for (let i = 0; i < 22; i++) {
+    const st = document.createElement("span");
+    st.textContent = ["✨", "⭐", "💫"][i % 3];
+    st.style.left = Math.random() * 96 + "%";
+    st.style.animationDelay = Math.random() * 0.8 + "s";
+    rain.appendChild(st);
+  }
+  $("stage").appendChild(rain);
+  setTimeout(() => rain.remove(), 3600);
+  toast("Сделано с 💜 специально для вас двоих");
+  buzz([30, 30, 30, 30, 90]);
 });

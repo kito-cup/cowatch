@@ -27,7 +27,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="display:flex;align-items:center"><img src="/logo.png" alt="CoWatch" style="height:30px;display:block" /></a>
-      <span style="font-size:11px;color:var(--faint)">v13</span>
+      <span style="font-size:11px;color:var(--faint)">v14</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -37,6 +37,7 @@
         <i></i><span id="sync-label">подключение…</span>
       </div>
       <button id="stats-btn" class="copy-link" title="Наша статистика" style="padding:6px 10px">⭐</button>
+      <button id="settings-btn" class="copy-link" title="Настройки" style="padding:6px 10px">⚙️</button>
       <div id="members" class="members"></div>
     </header>
 
@@ -44,6 +45,23 @@
     <div id="avatar-picker" class="diag avatar-picker" style="display:none">
       <h3>Мой аватар</h3>
       <div class="av-grid" id="av-grid"></div>
+    </div>
+
+    <!-- настройки -->
+    <div id="settings-panel" class="diag settings-panel" style="display:none">
+      <h3>⚙️ Настройки</h3>
+      <div class="set-row"><label>Цвет</label><div class="theme-dots" id="theme-dots"></div></div>
+      <div class="set-row"><label>Текст чата</label>
+        <div class="seg" id="chatsize-seg">
+          <button data-v="s">S</button><button data-v="m">M</button><button data-v="l">L</button>
+        </div>
+      </div>
+      <div class="set-row"><label>Яркость видео</label>
+        <input type="range" id="set-bright" min="60" max="140" step="5" /></div>
+      <div class="set-row"><label>Анимации</label><button class="tgl" id="tgl-anim"></button></div>
+      <div class="set-row"><label>Реакции поверх видео</label><button class="tgl" id="tgl-fx"></button></div>
+      <div class="set-row"><label>Вибрация</label><button class="tgl" id="tgl-vibro"></button></div>
+      <button id="settings-close">Закрыть</button>
     </div>
 
     <!-- статистика пары и любимые моменты -->
