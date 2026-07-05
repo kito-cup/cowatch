@@ -372,6 +372,7 @@ setInterval(() => {
   const lines = [
     `версия      ${CW_VERSION()}`,
     `запуск      ${matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "приложение" : "браузер"} · отступ шапки ${getComputedStyle(document.querySelector(".topbar")).paddingTop}`,
+    `экран       окно ${innerWidth}px · страница ${document.documentElement.scrollWidth}px · зум ${(window.visualViewport?.scale ?? 1).toFixed(2)}`,
     `соединение  ${socket.connected ? "✓ подключено" : "✗ разорвано"}`,
     `часы        offset ${Math.round(clock.offset)}мс, rtt ${Math.round(clock.rtt)}мс`,
     `источник    ${sync.state?.source ? sync.state.source.kind + " " + sync.state.source.url.slice(0, 60) : "не выбран"}`,

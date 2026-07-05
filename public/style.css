@@ -606,3 +606,9 @@ body[data-chatsize="l"] .msg .text { font-size: 15.5px; }
   #stats-btn, #settings-btn { padding: 6px 9px !important; }
   .avatar { width: 26px; height: 26px; font-size: 11px; }
 }
+
+/* ---------- v17: страница не может быть шире экрана ---------- */
+.room { width: 100vw; max-width: 100vw; overflow: hidden; }
+/* грид-области не распирают раскладку своим содержимым */
+.topbar, .stage, .chat { min-width: 0; max-width: 100%; }
+.chat > * { min-width: 0; }
