@@ -52,9 +52,13 @@ function createRoom() {
   return id;
 }
 
+const AVATARS = ["🐱","🐶","🦊","🐻","🐼","🐸","🦁","🐯","🐰","🦄","🐙","🦋","🌸","🍓","🌙","⭐"];
+const cleanAvatar = (a) => (AVATARS.includes(a) ? a : null);
+
 function publicMembers(room) {
   return [...room.members.entries()].map(([sid, m]) => ({
-    id: sid, name: m.name, hue: m.hue, isOwner: m.isOwner, status: m.status || null,
+    id: sid, name: m.name, hue: m.hue, isOwner: m.isOwner,
+    status: m.status || null, avatar: m.avatar || null,
   }));
 }
 
@@ -132,6 +136,7 @@ io.on("connection", (socket) => {
       name: cleanName,
       hue: Math.floor(Math.random() * 360),
       isOwner,
+      avatar: cleanAvatar(p?.avatar),
     });
     socket.join(rid);
     joined = { roomId: rid };
@@ -232,12 +237,18 @@ io.on("connection", (socket) => {
     socket.to(joined.roomId).emit("chat:typing", { name: member.name, state: !!state });
   });
 
-  // Милые события — просто ретранслируем
+  // Милые события — ретранслируем; тук-тук и суперобнимашка не чаще раза в 4с
+  let loudAt = 0;
   socket.on("couple:event", (p) => {
     const type = p?.type;
     const room = joined && rooms.get(joined.roomId);
     const member = room?.members.get(socket.id);
-    if (!member || !["hug", "kiss"].includes(type)) return;
+    if (!member || !["hug", "kiss", "knock", "superhug"].includes(type)) return;
+    if (type === "knock" || type === "superhug") {
+      const now = Date.now();
+      if (now - loudAt < 4000) return;
+      loudAt = now;
+    }
     io.to(joined.roomId).emit("couple:event", { type, from: member.name });
   });
 
@@ -254,6 +265,15 @@ io.on("connection", (socket) => {
     reactWindow.push(now);
     const member = room.members.get(socket.id);
     io.to(joined.roomId).emit("couple:reaction", { emoji, from: member?.name || "" });
+  });
+
+  // Смена аватара-эмодзи
+  socket.on("room:avatar", (p) => {
+    const room = joined && rooms.get(joined.roomId);
+    const member = room?.members.get(socket.id);
+    if (!member) return;
+    member.avatar = cleanAvatar(p?.emoji);
+    io.to(joined.roomId).emit("presence:update", publicMembers(room));
   });
 
   // Статусы: «ушёл за чаем» и т.п. — бейдж у аватара
