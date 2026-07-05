@@ -612,3 +612,12 @@ body[data-chatsize="l"] .msg .text { font-size: 15.5px; }
 /* грид-области не распирают раскладку своим содержимым */
 .topbar, .stage, .chat { min-width: 0; max-width: 100%; }
 .chat > * { min-width: 0; }
+
+/* ---------- v18: низ экрана без тёмной полосы ---------- */
+/* подложка в цвет чата: любой зазор у нижнего края сливается с интерфейсом */
+body { background: var(--surface); }
+.landing { min-height: 100dvh; } /* у главной свой фон, ей полоса не грозит */
+.room { height: 100dvh; min-height: 100%; }
+/* сам чат дотягивается фоном до самого низа */
+.chat { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.chat-input { padding-bottom: 12px; }
