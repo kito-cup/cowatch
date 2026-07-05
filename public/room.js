@@ -235,8 +235,7 @@ function renderMembers(members) {
 $("members").addEventListener("click", (e) => {
   const av = e.target.closest(".avatar");
   if (!av || av.dataset.mid !== selfId) return;
-  const p = $("avatar-picker");
-  p.style.display = p.style.display === "none" ? "" : "none";
+  togglePanel("avatar-picker");
 });
 socket.on("presence:update", (members) => {
   const prev = new Set(lastMembers.map((m) => m.id));
@@ -276,10 +275,11 @@ function renderMessage(m) {
     setTimeout(() => fs.remove(), 4200);
   }
   maybeLoveExplosion(m.text);
+  const av = m.avatar || lastMembers.find((x) => x.name === m.author)?.avatar;
   const el = document.createElement("div");
   el.className = "msg";
   el.innerHTML = `
-    <div class="avatar" style="background:hsl(${m.hue} 60% 45%)">${esc(m.author[0].toUpperCase())}</div>
+    <div class="avatar" style="background:hsl(${m.hue} 60% 45%)">${av ? av : esc(m.author[0].toUpperCase())}</div>
     <div class="body">
       <div class="meta"><b>${esc(m.author)}</b>${new Date(m.at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })}</div>
       <div class="text">${esc(m.text)}</div>
@@ -353,12 +353,18 @@ $("tap-to-play").addEventListener("click", async () => {
   player.seek(sync.expected() + 0.1);  // догоняем комнату одним seek'ом
 });
 
+/* панели не накладываются: открытие одной закрывает остальные */
+const PANELS = ["diag", "stats-panel", "settings-panel", "avatar-picker"];
+function togglePanel(id) {
+  const willShow = $(id).style.display === "none";
+  PANELS.forEach((p) => ($(p).style.display = "none"));
+  if (willShow) $(id).style.display = "";
+  return willShow;
+}
+
 /* ---------------- Диагностика (тап по индикатору синка) ---------------- */
 const VIDEO_ERR = { 1: "прервано", 2: "сеть/CORS", 3: "декодирование", 4: "файл недоступен или формат не поддерживается" };
-$("sync-dot").addEventListener("click", () => {
-  const d = $("diag");
-  d.style.display = d.style.display === "none" ? "" : "none";
-});
+$("sync-dot").addEventListener("click", () => togglePanel("diag"));
 $("diag-resync").addEventListener("click", () => {
   if (!player || !sync.state) return;
   player.seek(sync.expected() + 0.1);
@@ -574,8 +580,7 @@ function streak() {
 
 /* панель статистики */
 $("stats-btn").addEventListener("click", () => {
-  renderStats();
-  $("stats-panel").style.display = "";
+  if (togglePanel("stats-panel")) renderStats();
 });
 $("stats-close").addEventListener("click", () => ($("stats-panel").style.display = "none"));
 
@@ -950,10 +955,7 @@ function saveSettings() {
   applySettings();
 })();
 
-$("settings-btn").addEventListener("click", () => {
-  const p = $("settings-panel");
-  p.style.display = p.style.display === "none" ? "" : "none";
-});
+$("settings-btn").addEventListener("click", () => togglePanel("settings-panel"));
 $("settings-close").addEventListener("click", () => ($("settings-panel").style.display = "none"));
 
 /* ================= v14: пасхалки 🤫 ================= */
