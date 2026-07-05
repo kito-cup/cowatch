@@ -467,3 +467,52 @@ input { font: inherit; color: inherit; }
   60% { transform: scale(1); opacity: 1; }
   100% { transform: scale(.9) translateY(-24px); opacity: 0; }
 }
+
+/* ---------- v12 ---------- */
+/* тук-тук: рука стучит по экрану партнёра */
+.knock-wave {
+  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center;
+  pointer-events: none;
+}
+.knock-wave span {
+  font-size: 92px;
+  animation: knock-shake 1.4s ease-in-out forwards;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,.5));
+}
+@keyframes knock-shake {
+  0% { transform: scale(0) rotate(0); opacity: 0; }
+  15% { transform: scale(1.1) rotate(-18deg); opacity: 1; }
+  30% { transform: scale(1) rotate(16deg); }
+  45% { transform: rotate(-14deg); }
+  60% { transform: rotate(12deg); }
+  75% { transform: rotate(-8deg); }
+  100% { transform: scale(.9) rotate(0); opacity: 0; }
+}
+
+/* пикер аватара */
+.avatar-picker h3 { font-size: 14px; margin: 2px 0 10px; }
+.av-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.av-grid button {
+  font-size: 24px; padding: 9px 0; border-radius: var(--r-s);
+  background: var(--surface); border: 1px solid var(--border);
+  transition: transform .12s, border-color .12s;
+}
+.av-grid button:active { transform: scale(1.15); border-color: var(--accent); }
+.av-grid button.me { border-color: var(--accent); background: rgba(88,101,242,.15); }
+
+/* 💜 между аватарками, когда вы вдвоём */
+.pair-heart {
+  font-size: 11px; align-self: center; margin: 0 -3px 0 3px; z-index: 1;
+  animation: pair-pulse 2.6s ease-in-out infinite;
+}
+@keyframes pair-pulse { 50% { transform: scale(1.25); } }
+
+/* суперобнимашка: кнопка растёт при удержании */
+#hug-btn { transition: transform .1s linear; }
+#hug-btn.charging { transform: scale(1.35); }
+
+/* билетик */
+.ticket-btn {
+  width: 100%; margin-bottom: 8px; padding: 11px; border-radius: var(--r-s);
+  background: var(--grad); border: 0; font-weight: 600; font-size: 13.5px;
+}

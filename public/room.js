@@ -19,7 +19,7 @@ let selfId = null;
 /* ---------------- Подключение / переподключение ---------------- */
 function join() {
   // любая корректная ссылка комнаты работает всегда, даже после рестарта сервера
-  socket.emit("room:join", { roomId, name: myName, createIfMissing: true }, (res) => {
+  socket.emit("room:join", { roomId, name: myName, avatar: localStorage.getItem("cw:avatar") || null, createIfMissing: true }, (res) => {
     if (res?.error) {
       document.body.innerHTML =
         `<main class="landing"><div class="landing-card"><div class="logo">CoWatch</div>
@@ -223,14 +223,21 @@ socket.on("sync:peer-buffering", ({ userId, state }) => {
 let lastMembers = [];
 function renderMembers(members) {
   lastMembers = members;
+  const heart = `<span class="pair-heart">💜</span>`;
   $("members").innerHTML = members
     .map(
-      (m) => `<div class="avatar ${m.isOwner ? "owner" : ""}"
-        title="${esc(m.name)}${m.isOwner ? " · владелец" : ""}"
-        style="background:hsl(${m.hue} 60% 45%)">${esc(m.name[0].toUpperCase())}${m.status ? `<span class="st">${m.status}</span>` : ""}</div>`,
+      (m) => `<div class="avatar ${m.isOwner ? "owner" : ""}" data-mid="${m.id}"
+        title="${esc(m.name)}${m.isOwner ? " · владелец" : ""}${m.id === selfId ? " · тап — сменить аватар" : ""}"
+        style="background:hsl(${m.hue} 60% 45%)">${m.avatar ? m.avatar : esc(m.name[0].toUpperCase())}${m.status ? `<span class="st">${m.status}</span>` : ""}</div>`,
     )
-    .join("");
+    .join(members.length === 2 ? heart : "");
 }
+$("members").addEventListener("click", (e) => {
+  const av = e.target.closest(".avatar");
+  if (!av || av.dataset.mid !== selfId) return;
+  const p = $("avatar-picker");
+  p.style.display = p.style.display === "none" ? "" : "none";
+});
 socket.on("presence:update", (members) => {
   const prev = new Set(lastMembers.map((m) => m.id));
   const cur = new Set(members.map((m) => m.id));
@@ -296,6 +303,33 @@ document.querySelectorAll("[data-love]").forEach((b) =>
   b.addEventListener("click", () => socket.emit("couple:event", { type: b.dataset.love })),
 );
 socket.on("couple:event", ({ type, from }) => {
+  if (type === "knock") {
+    systemMsg(`${from} стучится 👋`);
+    if (from !== myName) {
+      const w = document.createElement("div");
+      w.className = "knock-wave";
+      w.innerHTML = "<span>👋</span>";
+      $("stage").appendChild(w);
+      setTimeout(() => w.remove(), 1500);
+      try { navigator.vibrate?.([90, 60, 90, 60, 90]); } catch {}
+    }
+    return;
+  }
+  if (type === "superhug") {
+    systemMsg(`${from} → СУПЕРОБНИМАШКА 🤗💥`);
+    for (let i = 0; i < 34; i++) {
+      setTimeout(() => {
+        const h = document.createElement("span");
+        h.textContent = ["🤍", "💜", "💗", "✨"][i % 4];
+        h.style.left = 3 + Math.random() * 94 + "%";
+        h.style.fontSize = 18 + Math.random() * 26 + "px";
+        $("hearts").appendChild(h);
+        setTimeout(() => h.remove(), 2700);
+      }, i * 55);
+    }
+    try { navigator.vibrate?.([60, 40, 60, 40, 120]); } catch {}
+    return;
+  }
   const emoji = type === "hug" ? "🤗" : "💋";
   systemMsg(`${from} → ${emoji}`);
   for (let i = 0; i < 10; i++) {
@@ -515,6 +549,8 @@ setInterval(() => {
   if (!socket.connected || lastMembers.length < 2 || !sync.state?.playing) return;
   pair.seconds += 5;
   const today = new Date().toISOString().slice(0, 10);
+  if (pair.todayDate !== today) { pair.todayDate = today; pair.todaySec = 0; }
+  pair.todaySec = (pair.todaySec || 0) + 5;
   if (!pair.days.includes(today)) pair.days.push(today);
   const url = sync.state?.source?.url;
   if (url && !pair.films.includes(url)) pair.films.push(url);
@@ -697,4 +733,153 @@ $("status-btn").addEventListener("click", () => {
   $("status-btn").style.opacity = emoji ? "1" : "";
   socket.emit("couple:status", { emoji });
   toast(emoji ? `Статус: ${emoji}` : "Статус снят");
+});
+
+/* ================= v12: пикер аватара ================= */
+const AVATARS = ["🐱","🐶","🦊","🐻","🐼","🐸","🦁","🐯","🐰","🦄","🐙","🦋","🌸","🍓","🌙","⭐"];
+(function buildAvatarPicker() {
+  const grid = $("av-grid");
+  AVATARS.forEach((a) => {
+    const b = document.createElement("button");
+    b.textContent = a;
+    if (localStorage.getItem("cw:avatar") === a) b.classList.add("me");
+    b.addEventListener("click", () => {
+      localStorage.setItem("cw:avatar", a);
+      grid.querySelectorAll("button").forEach((x) => x.classList.remove("me"));
+      b.classList.add("me");
+      socket.emit("room:avatar", { emoji: a });
+      $("avatar-picker").style.display = "none";
+      toast(`Теперь ты ${a}`);
+    });
+    grid.appendChild(b);
+  });
+})();
+
+/* ================= v12: тук-тук ================= */
+$("knock-btn").addEventListener("click", () =>
+  socket.emit("couple:event", { type: "knock" }),
+);
+
+/* ================= v12: обнимашка с удержанием =================
+   короткое нажатие — обычная 🤗, удержание 1.5с — суперобнимашка */
+(function hugHold() {
+  const btn = $("hug-btn");
+  let downAt = 0, chargeTimer = null;
+  const start = (e) => {
+    e.preventDefault();
+    downAt = performance.now();
+    chargeTimer = setTimeout(() => btn.classList.add("charging"), 300);
+  };
+  const end = () => {
+    if (!downAt) return;
+    clearTimeout(chargeTimer);
+    btn.classList.remove("charging");
+    const held = performance.now() - downAt;
+    downAt = 0;
+    socket.emit("couple:event", { type: held >= 1500 ? "superhug" : "hug" });
+  };
+  btn.addEventListener("pointerdown", start);
+  btn.addEventListener("pointerup", end);
+  btn.addEventListener("pointerleave", () => { clearTimeout(chargeTimer); btn.classList.remove("charging"); downAt = 0; });
+})();
+
+/* ================= v12: билетик вечера 🎟 ================= */
+$("ticket-btn").addEventListener("click", makeTicket);
+async function makeTicket() {
+  toast("Печатаем билетик…");
+  const W = 900, H = 1200;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d");
+
+  // фон с мягкими свечениями
+  x.fillStyle = "#111114";
+  x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => {
+    const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, col); g.addColorStop(1, "transparent");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+  };
+  glow(W * 0.8, H * 0.15, 500, "rgba(88,101,242,.28)");
+  glow(W * 0.15, H * 0.8, 520, "rgba(108,92,231,.24)");
+
+  // корпус билета со скруглением и перфорацией по бокам
+  const pad = 60, ty = 130, th = H - 260;
+  x.fillStyle = "rgba(26,26,30,.92)";
+  x.strokeStyle = "rgba(255,255,255,.14)";
+  x.lineWidth = 2;
+  x.beginPath();
+  x.roundRect(pad, ty, W - pad * 2, th, 34);
+  x.fill(); x.stroke();
+  // выемки как у отрывного билета
+  const notchY = ty + th * 0.68;
+  x.globalCompositeOperation = "destination-out";
+  for (const nx of [pad, W - pad]) {
+    x.beginPath(); x.arc(nx, notchY, 26, 0, Math.PI * 2); x.fill();
+  }
+  x.globalCompositeOperation = "source-over";
+  // пунктир отрыва
+  x.setLineDash([12, 12]);
+  x.strokeStyle = "rgba(255,255,255,.22)";
+  x.beginPath(); x.moveTo(pad + 34, notchY); x.lineTo(W - pad - 34, notchY); x.stroke();
+  x.setLineDash([]);
+
+  // логотип
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i); i.onerror = rej;
+      i.src = "/logo.png";
+    });
+    const lw = 360, lh = lw * (img.height / img.width);
+    x.drawImage(img, (W - lw) / 2, ty + 50, lw, lh);
+  } catch {}
+
+  const center = (txt, y, font, col = "#fff") => {
+    x.font = font; x.fillStyle = col; x.textAlign = "center";
+    x.fillText(txt, W / 2, y);
+  };
+  const names = lastMembers.map((m) => m.name).slice(0, 2);
+  const date = new Date().toLocaleDateString("ru", { day: "numeric", month: "long", year: "numeric" });
+  const title = (sync.state?.source?.title || "Наш вечер").slice(0, 34);
+  const ts = pair.todaySec || 0;
+  const dur = ts >= 3600
+    ? `${Math.floor(ts / 3600)} ч ${Math.floor((ts % 3600) / 60)} мин`
+    : `${Math.max(1, Math.floor(ts / 60))} мин`;
+
+  center("БИЛЕТ НА ВЕЧЕР", ty + 420, "600 26px system-ui", "rgba(255,255,255,.55)");
+  center(names.join(" 💜 ") || myName, ty + 480, "700 44px system-ui");
+  center(date, ty + 530, "400 24px system-ui", "rgba(255,255,255,.6)");
+
+  x.font = "700 38px system-ui";
+  const fit = x.measureText(title).width > W - 200 ? title.slice(0, 26) + "…" : title;
+  center("🎬 " + fit, ty + 630, "700 38px system-ui");
+  center(`вместе у экрана: ${dur}`, ty + 690, "400 26px system-ui", "rgba(255,255,255,.7)");
+
+  center("МЕСТО: ДИВАН · РЯД: ОБНИМАШКИ", notchY + 70, "600 22px system-ui", "rgba(255,255,255,.5)");
+  center(`сеанс №${pair.days.length} · дней подряд: ${streak()}`, notchY + 115, "400 22px system-ui", "rgba(255,255,255,.45)");
+  center("cowatch · смотрим вместе", notchY + 175, "400 20px system-ui", "rgba(139,132,246,.9)");
+
+  // отдаём: нативный share на телефонах, иначе скачивание
+  c.toBlob(async (blob) => {
+    if (!blob) return toast("Не удалось создать билетик");
+    const file = new File([blob], "cowatch-ticket.png", { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Наш вечер в CoWatch" }); return; }
+      catch { /* отменили — скачиваем */ }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "cowatch-ticket.png";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, "image/png");
+}
+
+/* ================= v12: защита от случайного выхода ================= */
+window.addEventListener("beforeunload", (e) => {
+  if (sync.state?.playing && lastMembers.length >= 2) {
+    e.preventDefault();
+    e.returnValue = ""; // Android/десктоп покажут «Точно выйти?»; iOS такое не умеет
+  }
 });

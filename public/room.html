@@ -22,7 +22,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="display:flex;align-items:center"><img src="/logo.png" alt="CoWatch" style="height:30px;display:block" /></a>
-      <span style="font-size:11px;color:var(--faint)">v11</span>
+      <span style="font-size:11px;color:var(--faint)">v12</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -35,12 +35,19 @@
       <div id="members" class="members"></div>
     </header>
 
+    <!-- выбор аватара-эмодзи (тап по своему аватару) -->
+    <div id="avatar-picker" class="diag avatar-picker" style="display:none">
+      <h3>Мой аватар</h3>
+      <div class="av-grid" id="av-grid"></div>
+    </div>
+
     <!-- статистика пары и любимые моменты -->
     <div id="stats-panel" class="diag stats-panel" style="display:none">
       <h3>⭐ Наша статистика</h3>
       <div id="stats-body" class="stats-grid"></div>
       <h3>📌 Любимые моменты</h3>
       <div id="moments-list" class="moments-list"></div>
+      <button id="ticket-btn" class="ticket-btn">🎟 Билетик вечера</button>
       <button id="stats-close">Закрыть</button>
     </div>
 
@@ -133,9 +140,10 @@
       <div class="chat-log" id="chat-log"></div>
       <div class="typing" id="typing"></div>
       <div class="love-btns">
-        <button data-love="hug" title="Обнять">🤗</button>
+        <button id="hug-btn" title="Обнять · удерживай для суперобнимашки">🤗</button>
         <button data-love="kiss" title="Воздушный поцелуй">💋</button>
         <button id="status-btn" title="Мой статус">☕</button>
+        <button id="knock-btn" title="Тук-тук! Разбудить партнёра">👋</button>
         <span class="love-sep"></span>
         <button data-react="❤️">❤️</button>
         <button data-react="😂">😂</button>
