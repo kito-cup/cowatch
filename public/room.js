@@ -2,7 +2,7 @@
 const { resolveSource, createPlayer } = window.CW_PLAYERS;
 const { ClockSync, SyncEngine } = window.CW_SYNC;
 
-const CW_VERSION = document.getElementById("ver")?.textContent || "v?";
+const CW_VERSION = () => document.getElementById("ver")?.textContent || "v?";
 const roomId = location.pathname.split("/").pop();
 const myName = localStorage.getItem("cw:name") || prompt("Ваше имя:")?.slice(0, 24) || "Гость";
 localStorage.setItem("cw:name", myName);
@@ -370,7 +370,7 @@ setInterval(() => {
   const v = player?.video; // есть только у HTML5-плеера
   const err = v?.error ? `${v.error.code} (${VIDEO_ERR[v.error.code] || "?"})` : "нет";
   const lines = [
-    `версия      ${CW_VERSION}`,
+    `версия      ${CW_VERSION()}`,
     `запуск      ${matchMedia("(display-mode: standalone)").matches || navigator.standalone ? "приложение" : "браузер"} · отступ шапки ${getComputedStyle(document.querySelector(".topbar")).paddingTop}`,
     `соединение  ${socket.connected ? "✓ подключено" : "✗ разорвано"}`,
     `часы        offset ${Math.round(clock.offset)}мс, rtt ${Math.round(clock.rtt)}мс`,

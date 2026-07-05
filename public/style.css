@@ -591,3 +591,18 @@ body[data-chatsize="l"] .msg .text { font-size: 15.5px; }
   padding-left: max(14px, env(safe-area-inset-left)) !important;
   padding-right: max(14px, env(safe-area-inset-right)) !important;
 }
+
+/* ---------- v16: шапка влезает на узкие экраны ---------- */
+@media (max-width: 760px) {
+  .topbar { gap: 8px; }
+  .topbar .brand img { height: 24px !important; }
+  #ver { display: none; }
+  /* «Пригласить» — только иконка-цепочка */
+  #room-code { display: none; }
+  #copy-link { padding: 9px; }
+  /* индикатор синка — только цветная точка; подробности по тапу */
+  #sync-label { display: none; }
+  .sync-dot { padding: 9px; }
+  #stats-btn, #settings-btn { padding: 6px 9px !important; }
+  .avatar { width: 26px; height: 26px; font-size: 11px; }
+}
