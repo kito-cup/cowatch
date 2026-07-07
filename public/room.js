@@ -252,11 +252,27 @@ socket.on("presence:update", (members) => {
 const chatText = $("chat-text");
 chatText.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && chatText.value.trim()) {
-    socket.emit("chat:send", { text: chatText.value });
+    socket.emit("chat:send", { text: chatText.value, replyTo: pendingReply?.id || null });
     chatText.value = "";
+    clearReply();
     socket.emit("chat:typing", false);
   }
 });
+
+/* ответ на сообщение: тап по сообщению — цитата над полем ввода */
+let pendingReply = null;
+function setReply(m) {
+  pendingReply = m;
+  $("reply-preview").textContent =
+    `↩ ${m.author}: ${m.type === "photo" ? "📷 фото" : m.text}`;
+  $("reply-bar").style.display = "";
+  chatText.focus();
+}
+function clearReply() {
+  pendingReply = null;
+  $("reply-bar").style.display = "none";
+}
+$("reply-cancel").addEventListener("click", clearReply);
 let typingTimer = null;
 chatText.addEventListener("input", () => {
   socket.emit("chat:typing", true);
@@ -283,15 +299,28 @@ function renderMessage(m) {
     ? (m.data ? `<img class="photo" src="${m.data}" alt="фото" />`
               : `<div class="photo-gone">📷 фото уже недоступно</div>`)
     : `<div class="text">${esc(m.text)}</div>`;
+  const quote = m.reply
+    ? `<span class="reply-quote" data-target="${esc(m.reply.id)}"><b>${esc(m.reply.author)}</b>${esc(m.reply.text)}</span>`
+    : "";
   const el = document.createElement("div");
   el.className = "msg";
+  el.dataset.msgid = m.id;
   el.innerHTML = `
     <div class="avatar" style="background:hsl(${m.hue} 60% 45%)">${av ? av : esc(m.author[0].toUpperCase())}</div>
     <div class="body">
       <div class="meta"><b>${esc(m.author)}</b>${new Date(m.at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })}</div>
-      ${body}
+      ${quote}${body}
     </div>`;
-  el.querySelector(".photo")?.addEventListener("click", () => openLightbox(m.data));
+  el.querySelector(".photo")?.addEventListener("click", (e) => { e.stopPropagation(); openLightbox(m.data); });
+  el.querySelector(".reply-quote")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const orig = document.querySelector(`.msg[data-msgid="${m.reply.id}"]`);
+    if (orig) {
+      orig.scrollIntoView({ behavior: "smooth", block: "center" });
+      orig.classList.remove("flash"); void orig.offsetWidth; orig.classList.add("flash");
+    } else toast("Сообщение уже уплыло из истории");
+  });
+  el.querySelector(".body").addEventListener("click", () => setReply(m));
   appendToLog(el);
 }
 function systemMsg(text) {
