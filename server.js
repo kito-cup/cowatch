@@ -216,6 +216,17 @@ io.on("connection", (socket) => {
     chatWindow = chatWindow.filter((t) => now - t < 10_000);
     if (chatWindow.length >= 10) return;
     chatWindow.push(now);
+    // ответ на сообщение: сохраняем снимок цитаты (оригинал может уйти из истории)
+    let reply = null;
+    const rid = typeof p?.replyTo === "string" ? p.replyTo.slice(0, 16) : null;
+    if (rid) {
+      const orig = room.messages.find((m) => m.id === rid);
+      if (orig) reply = {
+        id: orig.id,
+        author: orig.author,
+        text: orig.type === "photo" ? "📷 фото" : String(orig.text || "").slice(0, 80),
+      };
+    }
     const clean = String(text || "").slice(0, 500).trim();
     if (!clean) return;
     const msg = {
@@ -224,6 +235,7 @@ io.on("connection", (socket) => {
       hue: member.hue,
       avatar: member.avatar || null,
       text: clean,
+      reply,
       at: Date.now(),
     };
     room.messages.push(msg);
