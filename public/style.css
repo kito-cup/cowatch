@@ -621,3 +621,53 @@ body { background: var(--surface); }
 /* сам чат дотягивается фоном до самого низа */
 .chat { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .chat-input { padding-bottom: 12px; }
+
+/* ---------- v21: аспект видео, смена, недавние, фото ---------- */
+/* зона видео повторяет пропорции кадра — конец гигантским чёрным полям */
+@media (max-width: 760px) and (orientation: portrait) {
+  body.has-video .room {
+    grid-template-rows: calc(52px + env(safe-area-inset-top, 0px)) auto 1fr;
+  }
+  body.has-video .stage { aspect-ratio: 16 / 9; height: auto; max-height: 52dvh; }
+}
+
+/* карточка «что смотрим» плавает по центру и умеет скроллиться */
+.source-card {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 8; max-height: 92%; overflow-y: auto;
+}
+
+/* плавающая кнопка смены видео */
+.float-change {
+  position: absolute; top: 10px; right: 10px; z-index: 6;
+  width: 40px; height: 40px; border-radius: 50%; font-size: 17px;
+  background: rgba(17,17,17,.55); backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  opacity: .55; transition: opacity .2s;
+}
+.float-change:active, .stage:hover .float-change { opacity: 1; }
+
+/* недавние видео в карточке */
+.recent-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.recent-list:empty { display: none; }
+.recent-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-s); padding: 9px 11px; font-size: 12.5px;
+}
+.recent-row:active { border-color: var(--accent); }
+.recent-row .r-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+.recent-row .r-title { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* фото в чате */
+#photo-btn { font-size: 17px; padding: 6px 4px; flex-shrink: 0; }
+.msg .photo {
+  display: block; max-width: 200px; max-height: 240px; border-radius: var(--r-s);
+  margin-top: 3px; border: 1px solid var(--border); cursor: pointer;
+}
+.msg .photo-gone { color: var(--faint); font-size: 12.5px; font-style: italic; }
+.lightbox {
+  position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.9);
+  display: grid; place-items: center;
+}
+.lightbox img { max-width: 96vw; max-height: 92vh; border-radius: var(--r-m); }

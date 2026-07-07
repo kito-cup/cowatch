@@ -100,6 +100,9 @@ function mountSource(source) {
   player.on("user-seek", (t) => sync.userSeek(t));
   bindEnded();
   $("ended-overlay").style.display = "none"; // новое видео — старый финал не нужен
+  document.body.classList.add("has-video");
+  $("float-change").style.display = "";
+  pushHistory(source, 0);
 }
 
 /* ---------------- Контролы (HTML5/HLS) ---------------- */
@@ -270,20 +273,25 @@ function renderMessage(m) {
   if (document.fullscreenElement && m.author !== myName) {
     const fs = document.createElement("div");
     fs.className = "fs-msg";
-    fs.innerHTML = `<b>${esc(m.author)}</b>${esc(m.text)}`;
+    fs.innerHTML = `<b>${esc(m.author)}</b>${m.type === "photo" ? "📷 фото" : esc(m.text)}`;
     $("stage").appendChild(fs);
     setTimeout(() => fs.remove(), 4200);
   }
-  maybeLoveExplosion(m.text);
+  if (m.text) maybeLoveExplosion(m.text);
   const av = m.avatar || lastMembers.find((x) => x.name === m.author)?.avatar;
+  const body = m.type === "photo"
+    ? (m.data ? `<img class="photo" src="${m.data}" alt="фото" />`
+              : `<div class="photo-gone">📷 фото уже недоступно</div>`)
+    : `<div class="text">${esc(m.text)}</div>`;
   const el = document.createElement("div");
   el.className = "msg";
   el.innerHTML = `
     <div class="avatar" style="background:hsl(${m.hue} 60% 45%)">${av ? av : esc(m.author[0].toUpperCase())}</div>
     <div class="body">
       <div class="meta"><b>${esc(m.author)}</b>${new Date(m.at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })}</div>
-      <div class="text">${esc(m.text)}</div>
+      ${body}
     </div>`;
+  el.querySelector(".photo")?.addEventListener("click", () => openLightbox(m.data));
   appendToLog(el);
 }
 function systemMsg(text) {
@@ -681,9 +689,14 @@ $("ended-replay").addEventListener("click", () => {
 });
 $("ended-new").addEventListener("click", () => {
   $("ended-overlay").style.display = "none";
+  openSourceCard();
+});
+$("float-change").addEventListener("click", openSourceCard);
+function openSourceCard() {
+  renderRecent();
   $("source-card").style.display = "";
   $("search-input").focus();
-});
+}
 
 /* ================= v10: экран не гаснет во время просмотра ================= */
 let wakeLock = null;
@@ -1007,3 +1020,76 @@ document.querySelector(".brand").addEventListener("click", (e) => {
   toast("Сделано с 💜 специально для вас двоих");
   buzz([30, 30, 30, 30, 90]);
 });
+
+/* ================= v21: история видео с возвратом ================= */
+const HIST_KEY = "cw:history:" + roomId;
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch { return []; }
+}
+function pushHistory(source, time) {
+  if (!source?.url) return;
+  let h = loadHistory().filter((x) => x.url !== source.url);
+  h.unshift({ url: source.url, kind: source.kind, title: source.title || "", time: Math.floor(time), at: Date.now() });
+  localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 8)));
+}
+// позиция текущего видео обновляется в истории каждые 10 секунд
+setInterval(() => {
+  const st = sync.state;
+  if (st?.source && st.playing && player) pushHistory(st.source, player.getTime());
+}, 10000);
+
+function renderRecent() {
+  const list = $("recent-list");
+  list.innerHTML = "";
+  const cur = sync.state?.source?.url;
+  loadHistory().filter((h) => h.url !== cur).slice(0, 5).forEach((h) => {
+    const b = document.createElement("button");
+    b.className = "recent-row";
+    b.innerHTML = `<span class="r-time">↩ ${fmt(h.time)}</span>
+      <span class="r-title">${esc(h.title || h.url.split("/").filter(Boolean).pop())}</span>`;
+    b.addEventListener("click", () => {
+      $("source-card").style.display = "none";
+      socket.emit("sync:action", { type: "source", value: { kind: h.kind, url: h.url, title: h.title } });
+      if (h.time > 20) setTimeout(() => sync.userSeek(h.time), 2500);
+    });
+    list.appendChild(b);
+  });
+}
+
+/* ================= v21: фото в чате ================= */
+$("photo-btn").addEventListener("click", () => $("photo-file").click());
+$("photo-file").addEventListener("change", async () => {
+  const file = $("photo-file").files[0];
+  $("photo-file").value = "";
+  if (!file) return;
+  toast("Отправляем фото…");
+  try {
+    const data = await compressImage(file);
+    if (data.length > 450_000) return toast("Фото слишком большое даже после сжатия");
+    socket.emit("chat:photo", { data });
+  } catch { toast("Не получилось обработать фото"); }
+});
+
+function compressImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1280;
+      const k = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      res(c.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = rej;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+$("lightbox").addEventListener("click", () => ($("lightbox").style.display = "none"));
+function openLightbox(src) {
+  $("lightbox-img").src = src;
+  $("lightbox").style.display = "";
+}

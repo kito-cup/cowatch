@@ -27,7 +27,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="display:flex;align-items:center"><img src="/logo.png" alt="CoWatch" style="height:30px;display:block" /></a>
-      <span id="ver" style="font-size:11px;color:var(--faint)">v20</span>
+      <span id="ver" style="font-size:11px;color:var(--faint)">v21</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -94,6 +94,7 @@
         </div>
         <div class="search-results" id="search-results"></div>
         <button id="resume-btn" class="resume-btn" style="display:none"></button>
+        <div id="recent-list" class="recent-list"></div>
         <details class="link-details">
           <summary>Дополнительно</summary>
           <div class="source-row" style="margin-top:10px">
@@ -115,6 +116,9 @@
         <span class="tap-circle">▶</span>
         <span>Нажмите, чтобы смотреть вместе</span>
       </button>
+
+      <!-- смена видео: всегда под рукой, даже на YouTube/RuTube -->
+      <button id="float-change" class="float-change" style="display:none" title="Сменить видео">🎬</button>
 
       <!-- экран окончания видео -->
       <div id="ended-overlay" class="ended-overlay" style="display:none">
@@ -176,12 +180,15 @@
         <button data-react="😭">😭</button>
       </div>
       <div class="chat-input">
+        <button id="photo-btn" title="Отправить фото">📷</button>
         <input id="chat-text" placeholder="Сообщение…" maxlength="500" autocomplete="off" />
+        <input id="photo-file" type="file" accept="image/*" style="display:none" />
       </div>
     </aside>
   </div>
 
   <div class="toasts" id="toasts"></div>
+  <div id="lightbox" class="lightbox" style="display:none"><img id="lightbox-img" alt="" /></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/hls.min.js"></script>
