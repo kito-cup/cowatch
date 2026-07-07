@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const http = createServer(app);
-const io = new Server(http, { cors: { origin: true } });
+const io = new Server(http, { cors: { origin: true }, maxHttpBufferSize: 1.5e6 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public"), {
@@ -228,6 +228,35 @@ io.on("connection", (socket) => {
     };
     room.messages.push(msg);
     if (room.messages.length > 100) room.messages.shift();
+    io.to(joined.roomId).emit("chat:message", msg);
+  });
+
+  // Фото в чате: сжатый JPEG как dataURL, не чаще 1 раза в 8 секунд.
+  // Храним в истории комнаты не больше 10 последних фото — старым чистим данные
+  let photoAt = 0;
+  socket.on("chat:photo", (p) => {
+    const room = joined && rooms.get(joined.roomId);
+    const member = room?.members.get(socket.id);
+    if (!room || !member) return;
+    const data = p?.data;
+    if (typeof data !== "string" || !data.startsWith("data:image/jpeg;base64,")) return;
+    if (data.length > 450_000) return;
+    const now = Date.now();
+    if (now - photoAt < 8000) return;
+    photoAt = now;
+    const msg = {
+      id: randomBytes(4).toString("hex"),
+      author: member.name,
+      hue: member.hue,
+      avatar: member.avatar || null,
+      type: "photo",
+      data,
+      at: now,
+    };
+    room.messages.push(msg);
+    if (room.messages.length > 100) room.messages.shift();
+    const photos = room.messages.filter((m) => m.type === "photo" && m.data);
+    while (photos.length > 10) { photos.shift().data = null; } // текстовая пометка останется
     io.to(joined.roomId).emit("chat:message", msg);
   });
 
