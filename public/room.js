@@ -74,7 +74,9 @@ function mountSource(source) {
   toast(source.title ? `▶ ${source.title}` : `Источник: ${srcName}`);
   document.title = source.title ? `${source.title} — CoWatch` : "CoWatch — комната";
 
-  const isEmbed = resolved.kind === "youtube" || resolved.kind === "rutube";
+  const isEmbed = ["youtube", "rutube", "twitch"].includes(resolved.kind);
+  badge("live", resolved.kind === "twitch" && resolved.live
+    ? "🔴 LIVE — задержка трансляции у каждого своя" : null);
   $("controls").style.display = isEmbed ? "none" : ""; // у embed-плееров свой UI
 
   player.on("ready", () => {

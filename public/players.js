@@ -13,6 +13,11 @@ function resolveSource(url) {
   if (yt) return { kind: "youtube", url, videoId: yt[1] };
   const rt = url.match(/rutube\.ru\/(?:video|play\/embed|shorts)\/([0-9a-f]{32})/i);
   if (rt) return { kind: "rutube", url, videoId: rt[1] };
+  const tv = url.match(/twitch\.tv\/videos\/(\d+)/i);
+  if (tv) return { kind: "twitch", url, videoId: tv[1], live: false };
+  const tc = url.match(/twitch\.tv\/([A-Za-z0-9_]{3,25})(?:[/?#]|$)/i);
+  if (tc && tc[1].toLowerCase() !== "videos")
+    return { kind: "twitch", url, channel: tc[1], live: true };
   if (/\.m3u8(\?|$)/i.test(url)) return { kind: "hls", url };
   return { kind: "direct", url };
 }
@@ -275,4 +280,106 @@ function createPlayer(host, source) {
 }
 
 window.CW_PLAYERS = { resolveSource, createPlayer };
+})();
+
+/* ---------- Twitch (официальный interactive embed) ----------
+   VOD синхронизируется полноценно (есть seek/getCurrentTime).
+   Live: у каждого зрителя своя задержка CDN — синхронизируем только
+   play/pause, временем не управляем. */
+(() => {
+  let twApiPromise = null;
+  function loadTwitchApi() {
+    if (window.Twitch?.Player) return Promise.resolve();
+    if (twApiPromise) return twApiPromise;
+    twApiPromise = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://embed.twitch.tv/embed/v1.js";
+      s.onload = res;
+      s.onerror = () => rej(new Error("twitch api load failed"));
+      document.head.appendChild(s);
+    });
+    return twApiPromise;
+  }
+
+  class TwitchPlayer {
+    constructor(host, source) {
+      this.kind = "twitch";
+      this.isLive = !!source.live;
+      this.handlers = {};
+      this.destroyed = false;
+      this.ready = false;
+      this.suppressUntil = 0;
+      this.lastPoll = null;
+
+      const div = document.createElement("div");
+      div.id = "tw-host";
+      div.style.cssText = "position:absolute;inset:0";
+      host.appendChild(div);
+
+      loadTwitchApi().then(() => {
+        if (this.destroyed) return;
+        const opts = {
+          width: "100%", height: "100%",
+          parent: [location.hostname],
+          autoplay: false,
+        };
+        if (this.isLive) opts.channel = source.channel;
+        else opts.video = source.videoId;
+        this.tw = new Twitch.Player("tw-host", opts);
+        const P = Twitch.Player;
+        this.tw.addEventListener(P.READY, () => {
+          this.ready = true; this.emit("ready"); this.startPolling();
+        });
+        this.tw.addEventListener(P.PLAY, () => {
+          this.emit("buffering", false);
+          if (!this.suppressed) this.emit("user-play", this.getTime());
+        });
+        this.tw.addEventListener(P.PAUSE, () => {
+          if (!this.suppressed) this.emit("user-pause", this.getTime());
+        });
+        this.tw.addEventListener(P.ENDED, () => this.emit("ended"));
+      }).catch(() =>
+        this.emit("error", "Не удалось загрузить плеер Twitch. Проверьте доступ к twitch.tv."),
+      );
+    }
+    emit(ev, ...a) { (this.handlers[ev] || []).forEach((f) => f(...a)); }
+    on(ev, f) { (this.handlers[ev] ||= []).push(f); }
+    suppress(ms = 1000) { this.suppressUntil = performance.now() + ms; }
+    get suppressed() { return performance.now() < this.suppressUntil; }
+
+    startPolling() {
+      this._poll = setInterval(() => {
+        const t = this.getTime(), now = performance.now();
+        if (!this.isLive && this.lastPoll) {
+          const elapsed = (now - this.lastPoll.at) / 1000;
+          const expected = this.lastPoll.t + (this.isPaused() ? 0 : elapsed);
+          if (Math.abs(t - expected) > 2.5 && !this.suppressed) this.emit("user-seek", t);
+        }
+        this.lastPoll = { t, at: now };
+        this.emit("timeupdate", t);
+      }, 500);
+    }
+
+    async play() { this.suppress(); this.tw?.play(); }
+    pause() { this.suppress(); this.tw?.pause(); }
+    seek(t) {
+      if (this.isLive) return; // live живёт на краю трансляции
+      this.suppress(); this.lastPoll = null; this.tw?.seek(Math.max(0, t));
+    }
+    setRate() {}
+    getTime() { return this.tw?.getCurrentTime?.() || 0; }
+    getDuration() { return this.isLive ? Infinity : (this.tw?.getDuration?.() || 0); }
+    getBuffered() { return 0; }
+    setMuted(m) { this.tw?.setMuted(m); }
+    isPaused() { return this.tw?.isPaused?.() ?? true; }
+    destroy() {
+      this.destroyed = true;
+      clearInterval(this._poll);
+      document.getElementById("tw-host")?.remove();
+    }
+  }
+
+  const orig = window.CW_PLAYERS.createPlayer;
+  window.CW_PLAYERS.createPlayer = (host, source) =>
+    source.kind === "twitch" ? new TwitchPlayer(host, source) : orig(host, source);
 })();

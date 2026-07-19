@@ -77,10 +77,12 @@ class SyncEngine {
     if (!p) return;
 
     // смена источника обрабатывает room.js; здесь — время/скорость/пауза
-    const target = this.expected();
-    if (Math.abs(p.getTime() - target) > 0.5) {
-      p.seek(target + 0.1);
-      this.seekCooldown = performance.now() + 1500;
+    if (!p.isLive) {
+      const target = this.expected();
+      if (Math.abs(p.getTime() - target) > 0.5) {
+        p.seek(target + 0.1);
+        this.seekCooldown = performance.now() + 1500;
+      }
     }
     if (!prev || prev.rate !== s.rate) p.setRate(s.rate);
     if (s.playing && p.isPaused()) p.play();
@@ -89,6 +91,7 @@ class SyncEngine {
 
   tick() {
     const p = this.player, s = this.state;
+    if (p?.isLive) { this.onDrift(null); return; } // live: у каждого своя задержка CDN
     if (!p || !s || !s.playing || this.buffering) { this.onDrift(null); return; }
     if (performance.now() < this.seekCooldown) return;
 
