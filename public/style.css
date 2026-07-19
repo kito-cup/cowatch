@@ -693,3 +693,22 @@ body { background: var(--surface); }
 .msg .body { cursor: pointer; }
 .msg.flash { animation: msg-flash 1.2s ease; }
 @keyframes msg-flash { 20% { background: rgba(88,101,242,.18); border-radius: 8px; } }
+
+/* ---------- v24: выбор видео как полноценный оверлей ---------- */
+.source-wrap {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  background: rgba(10, 10, 14, .66); backdrop-filter: blur(6px);
+  padding: 16px;
+}
+.source-card {
+  position: static; left: auto; top: auto; transform: none;
+  width: min(480px, 100%); max-height: 86dvh; overflow-y: auto;
+  background: #17171b; /* плотный фон — сквозь карточку ничего не просвечивает */
+}
+.source-close {
+  position: absolute; top: 10px; right: 12px; z-index: 2;
+  font-size: 16px; color: var(--muted); padding: 6px 8px;
+}
+.source-card { position: relative; }
+.source-close:active { color: var(--text); }

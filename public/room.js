@@ -45,7 +45,7 @@ socket.on("disconnect", () => setSyncDot("bad", "переподключение�
 $("source-go").addEventListener("click", submitSource);
 $("source-input").addEventListener("keydown", (e) => e.key === "Enter" && submitSource());
 $("btn-src").addEventListener("click", () => {
-  $("source-card").style.display = "";
+  $("source-wrap").style.display = "";
   $("source-input").focus();
 });
 
@@ -65,7 +65,7 @@ function mountSource(source) {
   player?.destroy();
   $("player-host").innerHTML = "";
   $("player-host").style.display = "block";
-  $("source-card").style.display = "none";
+  $("source-wrap").style.display = "none";
 
   const resolved = resolveSource(source.url);
   player = createPlayer($("player-host"), resolved);
@@ -91,7 +91,7 @@ function mountSource(source) {
     if (!isEmbed) badge("me-buf", b ? "⏳ Буферизация…" : null);
   });
   player.on("timeupdate", updateTimeline);
-  player.on("error", (msg) => { toast(msg, 5000); $("source-card").style.display = ""; });
+  player.on("error", (msg) => { toast(msg, 5000); $("source-wrap").style.display = ""; });
   player.on("autoplay-blocked", () => { $("tap-to-play").style.display = "flex"; });
 
   // действия пользователя ВНУТРИ iframe YouTube транслируем в комнату
@@ -199,7 +199,7 @@ function updatePlayIcon() {
   $("ic-pause").style.display = paused ? "none" : "";
   $("btn-rate").textContent = (sync.state?.rate ?? 1) + "×";
   $("big-play").style.display =
-    paused && player && player.kind !== "youtube" ? "" : "none";
+    paused && player && (player.kind === "direct" || player.kind === "hls") ? "" : "none";
 }
 setInterval(updatePlayIcon, 500); // пауза может прийти и с сервера
 
@@ -725,9 +725,15 @@ $("ended-new").addEventListener("click", () => {
 $("float-change").addEventListener("click", openSourceCard);
 function openSourceCard() {
   renderRecent();
-  $("source-card").style.display = "";
+  $("source-close").style.display = sync.state?.source ? "" : "none";
+  $("source-wrap").style.display = "";
   $("search-input").focus();
 }
+$("source-close").addEventListener("click", () => ($("source-wrap").style.display = "none"));
+$("source-wrap").addEventListener("click", (e) => {
+  if (e.target === $("source-wrap") && sync.state?.source)
+    $("source-wrap").style.display = "none";
+});
 
 /* ================= v10: экран не гаснет во время просмотра ================= */
 let wakeLock = null;
@@ -1079,7 +1085,7 @@ function renderRecent() {
     b.innerHTML = `<span class="r-time">↩ ${fmt(h.time)}</span>
       <span class="r-title">${esc(h.title || h.url.split("/").filter(Boolean).pop())}</span>`;
     b.addEventListener("click", () => {
-      $("source-card").style.display = "none";
+      $("source-wrap").style.display = "none";
       socket.emit("sync:action", { type: "source", value: { kind: h.kind, url: h.url, title: h.title } });
       if (h.time > 20) setTimeout(() => sync.userSeek(h.time), 2500);
     });

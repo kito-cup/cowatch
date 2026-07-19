@@ -27,7 +27,7 @@
     <!-- верхняя панель -->
     <header class="topbar">
       <a class="brand" href="/" style="display:flex;align-items:center"><img src="/logo.png" alt="CoWatch" style="height:30px;display:block" /></a>
-      <span id="ver" style="font-size:11px;color:var(--faint)">v23</span>
+      <span id="ver" style="font-size:11px;color:var(--faint)">v24</span>
       <button id="copy-link" class="copy-link" title="Скопировать ссылку-приглашение">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
         <span id="room-code">Пригласить</span>
@@ -85,8 +85,10 @@
       <div class="stage-badges" id="badges"></div>
       <div class="hearts" id="hearts"></div>
 
-      <!-- пустое состояние -->
+      <!-- выбор видео: полноэкранный оверлей -->
+      <div class="source-wrap" id="source-wrap">
       <div class="source-card" id="source-card">
+        <button id="source-close" class="source-close" style="display:none">✕</button>
         <h2>Что смотрим?</h2>
         <div class="source-row">
           <input id="search-input" placeholder="Название фильма или ссылка на видео" autocomplete="off" />
@@ -106,6 +108,7 @@
               onclick="event.preventDefault();document.getElementById('source-input').value=location.origin+'/test.mp4';document.getElementById('source-go').click()">
               Тестовое видео с таймером</a> — для проверки синхронизации.</p>
         </details>
+      </div>
       </div>
 
       <!-- сюда монтируется плеер -->
